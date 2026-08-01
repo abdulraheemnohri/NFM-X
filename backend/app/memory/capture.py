@@ -18,7 +18,7 @@ class MemoryCaptureEngine:
         self,
         db_session: AsyncSession,
         content: str,
-        type: str = None,
+        memory_type: str = None,
         subtype: str = None,
         agent_id: str = None,
         source_id: str = None,
@@ -28,7 +28,7 @@ class MemoryCaptureEngine:
     ) -> Memory:
         # 1. Classification
         classification = self.classifier.classify(content)
-        final_type = type or classification["type"]
+        final_type = memory_type or classification["type"]
         final_confidence = confidence or classification["confidence"]
         final_importance = importance or classification["importance"]
 

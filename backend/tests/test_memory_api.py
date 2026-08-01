@@ -125,3 +125,47 @@ async def test_learn_endpoint(db_session):
         assert list_data["total"] == 2
 
     app.dependency_overrides.clear()
+
+@pytest.mark.asyncio
+async def test_vector_sync_on_create_and_learn(db_session):
+    app.dependency_overrides[get_db_session] = lambda: db_session
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        # Create a memory via endpoint
+        payload = {
+            "type": "semantic",
+            "content": "Rust is known for memory safety.",
+            "agent_id": "rust-agent",
+            "confidence": 0.95
+        }
+        response = await ac.post("/v1/memory/", json=payload)
+        assert response.status_code == status.HTTP_201_CREATED
+        mem_data = response.json()
+        memory_id = mem_data["id"]
+
+        # Check if it was synced to vector store
+        from backend.app.embeddings.vector_store import get_vector_store
+        vs = get_vector_store()
+        assert memory_id in vs._metadata
+        assert vs._metadata[memory_id]["agent_id"] == "rust-agent"
+        assert vs._texts[memory_id] == "Rust is known for memory safety."
+
+        # Learn an interaction
+        learn_payload = {
+            "agent_id": "learn-agent",
+            "user_input": "What is WebAssembly?",
+            "ai_output": "WebAssembly is a binary instruction format.",
+            "metadata": {"topic": "wasm"}
+        }
+        learn_response = await ac.post("/v1/memory/learn", json=learn_payload)
+        assert learn_response.status_code == status.HTTP_200_OK
+        learn_data = learn_response.json()
+        memory_ids = learn_data["memory_ids"]
+        assert len(memory_ids) == 2
+
+        # Verify both are in the vector store
+        for mid in memory_ids:
+            assert mid in vs._metadata
+            assert vs._metadata[mid]["agent_id"] == "learn-agent"
+
+    app.dependency_overrides.clear()
