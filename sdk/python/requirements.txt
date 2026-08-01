@@ -1,0 +1,29 @@
+# NFM-X Python SDK Requirements
+# ============================
+
+# Core dependencies
+pydantic>=1.8.0
+httpx>=0.23.0
+numpy>=1.20.0
+
+# Optional dependencies (for advanced features)
+# sentence-transformers>=2.2.0
+# faiss-cpu>=1.7.0
+# networkx>=2.8.0
+
+# Development dependencies
+# pytest>=7.0.0
+# black>=22.0.0
+# flake8>=4.0.0
+
+# Urdu Comments
+# یہ NFM-X پائتھن SDK کی ڈپنڈینسیز ہیں
+# بنیادی ڈپنڈینسیز:
+# - pydantic: ڈیٹا ویلڈیشن اور ماڈل کے لیے
+# - httpx: HTTP کلائنٹ کے لیے
+# - numpy: ویکٹر آپریشنز کے لیے
+
+# اختیاری ڈپنڈینسیز:
+# - sentence-transformers: ایمبیڈنگز کے لیے
+# - faiss-cpu: ویکٹر اسٹور کے لیے
+# - networkx: گراف آپریشنز کے لیے
