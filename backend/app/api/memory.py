@@ -6,6 +6,9 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 import uuid
 import hashlib
+import logging
+
+logger = logging.getLogger(__name__)
 
 from backend.app.storage.database import get_db_session
 from backend.app.memory.models import Memory, MemoryVersion, MemoryEvent, MemoryType, MemoryStatus, ChangeType
@@ -149,6 +152,18 @@ async def create_memory(request: MemoryCreateRequest, db_session=Depends(get_db_
     db_session.add(event)
     await db_session.commit()
 
+    # Sync with vector store
+    try:
+        from backend.app.embeddings.models import get_embedding_model
+        from backend.app.embeddings.vector_store import get_vector_store
+        embedding = get_embedding_model().embed(request.content)
+        get_vector_store().add(memory_id, request.content, embedding, {
+            "type": request.type, "agent_id": request.agent_id
+        })
+        get_vector_store().save()
+    except Exception as e:
+        logger.warning(f"Failed to index vector for memory {memory_id}: {e}")
+
     return _memory_to_response(memory)
 
 @router.get("/{memory_id}", response_model=MemoryResponse)
@@ -233,6 +248,30 @@ async def learn_interaction(request: LearnRequest, db_session=Depends(get_db_ses
         metadata=request.metadata
     )
     await db_session.commit()
+
+    # Sync with vector store
+    try:
+        from backend.app.embeddings.models import get_embedding_model
+        from backend.app.embeddings.vector_store import get_vector_store
+        embedder = get_embedding_model()
+        store = get_vector_store()
+
+        # User memory
+        user_emb = embedder.embed(user_mem.content)
+        store.add(user_mem.id, user_mem.content, user_emb, {
+            "type": user_mem.type.value, "agent_id": user_mem.agent_id
+        })
+
+        # AI memory
+        ai_emb = embedder.embed(ai_mem.content)
+        store.add(ai_mem.id, ai_mem.content, ai_emb, {
+            "type": ai_mem.type.value, "agent_id": ai_mem.agent_id
+        })
+
+        store.save()
+    except Exception as e:
+        logger.warning(f"Failed to index vectors for learned interaction: {e}")
+
     return {
         "message": "Learned from interaction",
         "memory_ids": [user_mem.id, ai_mem.id]

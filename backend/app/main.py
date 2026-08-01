@@ -55,3 +55,13 @@ async def health_check():
         "version": "1.0.0",
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        "backend.app.main:app",
+        host=settings.NFM_HOST,
+        port=settings.NFM_PORT,
+        reload=settings.NFM_DEBUG
+    )
