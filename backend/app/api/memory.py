@@ -148,13 +148,29 @@ async def list_memories(agent_id: Optional[str] = None, memory_type: Optional[st
         result = await db_session.execute(stmt)
         memories = result.scalars().all()
         return MemoryListResponse(
-            memories=[MemoryResponse(id=m.id, root_id=m.root_id, version=m.version, type=m.type.value, content=m.content, normalized_content=m.normalized_content, agent_id=m.agent_id, source_id=m.source_id, confidence=m.confidence, importance=m.importance, status=m.status.value, created_at=m.created_at.isoformat(), observed_at=m.observed_at.isoformat() if m.observed_at else None, valid_from=m.valid_from.isoformat() if m.valid_from else None, valid_until=m.valid_until.isoformat() if m.valid_until else None, parent_id=m.parent_id, metadata=m.metadata) for m in memories], total=total, limit=limit, offset=offset
+            memories=[MemoryResponse(
+                id=m.id, root_id=m.root_id, version=m.version, type=m.type.value,
+                content=m.content, normalized_content=m.normalized_content,
+                agent_id=m.agent_id, source_id=m.source_id, confidence=m.confidence,
+                importance=m.importance, status=m.status.value,
+                created_at=m.created_at.isoformat(),
+                observed_at=m.observed_at.isoformat() if m.observed_at else None,
+                valid_from=m.valid_from.isoformat() if m.valid_from else None,
+                valid_until=m.valid_until.isoformat() if m.valid_until else None,
+                parent_id=m.parent_id, metadata=m.metadata
+            ) for m in memories],
+            total=total, limit=limit, offset=offset
         )
 
 
 @router.post("/learn")
 async def learn(request: LearnRequest, capture_engine=Depends(get_capture_engine)):
-    memories = await capture_engine.learn(agent_id=request.agent_id, user_input=request.user_input, ai_output=request.ai_output, metadata=request.metadata)
+    memories = await capture_engine.learn(
+        agent_id=request.agent_id,
+        user_input=request.user_input,
+        ai_output=request.ai_output,
+        metadata=request.metadata
+    )
     return {"message": "Learned from interaction", "memory_ids": [m.id for m in memories]}
 
 
@@ -164,5 +180,15 @@ async def get_memory_history(memory_id: str, db_session=Depends(get_db_session))
         stmt = select(MemoryVersion).where(MemoryVersion.memory_id == memory_id).order_by(MemoryVersion.version)
         result = await db_session.execute(stmt)
         versions = result.scalars().all()
-        if not versions: raise HTTPException(status_code=404, detail="Memory not found")
-        return {"memory_id": memory_id, "versions": [{"version": v.version, "content": v.content, "confidence": v.confidence, "importance": v.importance, "status": v.status.value, "change_type": v.change_type.value, "change_reason": v.change_reason, "created_at": v.created_at.isoformat(), "actor_id": v.actor_id, "actor_type": v.actor_type} for v in versions]}
+        if not versions:
+            raise HTTPException(status_code=404, detail="Memory not found")
+        return {
+            "memory_id": memory_id,
+            "versions": [{
+                "version": v.version, "content": v.content, "confidence": v.confidence,
+                "importance": v.importance, "status": v.status.value,
+                "change_type": v.change_type.value, "change_reason": v.change_reason,
+                "created_at": v.created_at.isoformat(), "actor_id": v.actor_id,
+                "actor_type": v.actor_type
+            } for v in versions]
+        }
