@@ -1,50 +1,47 @@
-"""
-NFM-X Context API
-Endpoints for building AI context
-"""
-
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
-from typing import Optional, Dict, Any, List
+from pydantic import BaseModel, Field
+from typing import List, Optional, Dict, Any
 
-from ..memory.retrieval import get_retrieval_engine
+from backend.app.storage.database import get_db_session
+from backend.app.retrieval.engine import get_retrieval_engine
+from backend.app.config import settings
 
-router = APIRouter(prefix="/memory", tags=["Context"])
-
+router = APIRouter()
 
 class ContextRequest(BaseModel):
-    agent_id: str
-    query: str
-    task: Optional[str] = None
-    max_memories: Optional[int] = 20
-
+    agent_id: str = Field(..., min_length=1)
+    query: str = Field(..., min_length=1)
+    memory_types: Optional[List[str]] = None
+    max_memories: Optional[int] = Field(None, ge=1, le=100)
 
 class ContextResponse(BaseModel):
-    task: str
-    current_state: Dict[str, Any]
-    relevant_memories: List[Dict[str, Any]]
-    important_history: List[Dict[str, Any]]
-    preferences: List[Dict[str, Any]]
-    constraints: List[Dict[str, Any]]
-    decisions: List[Dict[str, Any]]
-    skills: List[Dict[str, Any]]
-    known_failures: List[Dict[str, Any]]
-    relationships: List[Dict[str, Any]]
-    uncertainties: List[Dict[str, Any]]
-    conflicts: List[Dict[str, Any]]
-    sources: List[Dict[str, Any]]
+    agent_id: str
+    query: str
+    memories: List[Dict[str, Any]]
+    total_tokens_estimate: int
 
-
-@router.post("/context")
+@router.post("/context", response_model=ContextResponse)
 async def build_context(
     request: ContextRequest,
-    retrieval_engine=Depends(get_retrieval_engine)
+    db_session=Depends(get_db_session),
+    engine=Depends(get_retrieval_engine)
 ):
-    """Build a context pack for an AI interaction"""
-    context_pack = await retrieval_engine.build_context(
+    limit = request.max_memories or settings.NFM_MAX_CONTEXT_MEMORIES
+
+    results = await engine.retrieve(
+        db_session=db_session,
+        query=request.query,
+        agent_id=request.agent_id,
+        limit=limit,
+        memory_types=request.memory_types
+    )
+
+    total_chars = sum(len(r["content"]) for r in results)
+    token_estimate = total_chars // 4
+
+    return ContextResponse(
         agent_id=request.agent_id,
         query=request.query,
-        task=request.task,
-        max_memories=request.max_memories or 20
+        memories=results,
+        total_tokens_estimate=token_estimate
     )
-    return ContextResponse(**context_pack)
