@@ -1,0 +1,184 @@
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Loading animation */
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.loader {
+  animation: spin 1s linear infinite;
+}
+
+/* Card hover effect */
+.MuiCard-root {
+  transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.MuiCard-root:hover {
+  transform: translateY(-2px);
+  box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+/* Button hover effect */
+.MuiButton-contained {
+  transition: all 0.3s ease;
+}
+
+.MuiButton-contained:hover {
+  transform: translateY(-1px);
+  box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Form field styling */
+.MuiTextField-root {
+  margin-bottom: 16px;
+}
+
+/* Table styling */
+.MuiTableCell-head {
+  font-weight: 600;
+  background-color: #f5f5f5;
+}
+
+.MuiTableRow-hover:hover {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+/* Chip styling */
+.MuiChip-root {
+  margin: 2px;
+}
+
+/* Dialog styling */
+.MuiDialog-paper {
+  border-radius: 12px;
+}
+
+/* Alert styling */
+.MuiAlert-root {
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+/* Urdu font support */
+@font-face {
+  font-family: 'Noto Nastaliq Urdu';
+  font-style: normal;
+  font-weight: 400;
+  src: local('Noto Nastaliq Urdu'), url('https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu&display=swap');
+}
+
+/* Apply Urdu font when language is Urdu */
+[lang="ur"] {
+  font-family: 'Noto Nastaliq Urdu', sans-serif;
+}
+
+/* RTL support for Urdu */
+[dir="rtl"] {
+  direction: rtl;
+  text-align: right;
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+  .MuiCardContent-root {
+    padding: 16px !important;
+  }
+  
+  .MuiTypography-h4 {
+    font-size: 1.5rem;
+  }
+  
+  .MuiTypography-h6 {
+    font-size: 1.1rem;
+  }
+}
+
+/* Smooth transitions */
+* {
+  transition: all 0.2s ease;
+}
+
+/* Focus states */
+:focus {
+  outline: none;
+}
+
+.Mui-focused {
+  outline: 2px solid #1976d2;
+  outline-offset: 2px;
+}
+
+/* Disabled state */
+.Mui-disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* Success state */
+.Mui-success {
+  color: #4caf50;
+}
+
+/* Error state */
+.Mui-error {
+  color: #f44336;
+}
+
+/* Warning state */
+.Mui-warning {
+  color: #ff9800;
+}
+
+/* Info state */
+.Mui-info {
+  color: #2196f3;
+}
+
+// Urdu: NFM-X index.css
+// یہ NFM-X React Dashboard کے لیے CSS styles ہیں
+// اس میں:
+// - Font styling
+// - Scrollbar customization
+// - Loading animations
+// - Hover effects
+// - Responsive design
+// - RTL support for Urdu
+// - Color theming
