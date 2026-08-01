@@ -1,0 +1,20 @@
+# NFM-X CLI Requirements
+# =====================
+
+# Core dependencies
+argparse>=1.4.0
+requests>=2.28.0
+pydantic>=1.8.0
+httpx>=0.23.0
+
+# Optional dependencies (for advanced features)
+# numpy>=1.20.0
+# sentence-transformers>=2.2.0
+
+# Urdu Comments
+# یہ NFM-X CLI کی ڈپنڈینسیز ہیں
+# بنیادی ڈپنڈینسیز:
+# - argparse: کمانڈ لائن آرگیومنٹس کے لیے
+# - requests: HTTP درخواستوں کے لیے
+# - pydantic: ڈیٹا ویلڈیشن کے لیے
+# - httpx: ایسنک HTTP کے لیے
