@@ -1,3 +1,0 @@
-"""
-NFM-X Utility Scripts
-"""

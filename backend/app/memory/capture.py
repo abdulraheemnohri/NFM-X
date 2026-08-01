@@ -1,98 +1,95 @@
-#!/usr/bin/env python3
-"""
-NFM-X Memory Capture Engine
-===========================
-
-Handles the capture and ingestion of new memories into the system.
-Supports multiple memory types and automatic classification.
-
-Urdu: Yadashthon ko capture karne aur system mein shamil karne ka engine
-"""
-
-from typing import Dict, Any, Optional, List
-from datetime import datetime
-from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import datetime, timezone
 import uuid
-import json
 import hashlib
 
-from .models import Memory, MemoryVersion, MemoryType
-from .classification import MemoryClassifier
-from .confidence import ConfidenceCalculator
+from backend.app.memory.models import Memory, MemoryVersion, MemoryEvent, MemoryType, MemoryStatus, ChangeType
+from backend.app.memory.classification import MemoryClassifier
+from backend.app.config import settings
 
+class MemoryCaptureEngine:
+    def __init__(self):
+        self.classifier = MemoryClassifier()
 
-class MemoryCaptureInput(BaseModel):
-    content: str
-    memory_type: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
-    source: Optional[str] = None
-    timestamp: Optional[datetime] = None
-    confidence: Optional[float] = None
-    tags: Optional[List[str]] = None
-    related_entities: Optional[List[str]] = None
-
-
-class MemoryCaptureResult(BaseModel):
-    memory_id: str
-    version_id: str
-    classified_type: str
-    confidence_score: float
-    timestamp: datetime
-    checksum: str
-    status: str
-
-
-class MemoryCapturer:
-    def __init__(self, classifier: Optional[MemoryClassifier] = None, 
-                 confidence_calculator: Optional[ConfidenceCalculator] = None):
-        self.classifier = classifier or MemoryClassifier()
-        self.confidence_calculator = confidence_calculator or ConfidenceCalculator()
-    
-    def capture_memory(self, input_data: MemoryCaptureInput) -> MemoryCaptureResult:
-        memory_id = str(uuid.uuid4())
-        version_id = str(uuid.uuid4())
-        timestamp = input_data.timestamp or datetime.utcnow()
-        
-        memory_type = input_data.memory_type
-        if not memory_type:
-            memory_type = self.classifier.classify_memory(input_data.content, input_data.metadata or {})
-        
-        confidence = input_data.confidence
-        if confidence is None:
-            confidence = self.confidence_calculator.calculate_confidence(
-                input_data.content, memory_type, input_data.metadata or {}
-            )
-        
-        checksum = self._generate_checksum(input_data.content)
-        
-        memory = Memory(
-            id=memory_id, content=input_data.content, memory_type=memory_type,
-            source=input_data.source, metadata=input_data.metadata or {},
-            tags=input_data.tags or [], created_at=timestamp, updated_at=timestamp,
-            current_version_id=version_id
-        )
-        
-        version = MemoryVersion(
-            id=version_id, memory_id=memory_id, content=input_data.content,
-            memory_type=memory_type, confidence=confidence, checksum=checksum,
-            timestamp=timestamp, source=input_data.source, metadata=input_data.metadata or {},
-            version_number=1, is_current=True
-        )
-        
-        return MemoryCaptureResult(
-            memory_id=memory_id, version_id=version_id, classified_type=memory_type,
-            confidence_score=confidence, timestamp=timestamp, checksum=checksum, status="captured"
-        )
-    
-    def _generate_checksum(self, content: str) -> str:
+    def _sha256(self, content: str) -> str:
         return hashlib.sha256(content.encode('utf-8')).hexdigest()
-    
-    def batch_capture(self, inputs: List[MemoryCaptureInput]) -> List[MemoryCaptureResult]:
-        return [self.capture_memory(input_data) for input_data in inputs]
-    
-    def capture_from_dict(self, data: Dict[str, Any]) -> MemoryCaptureResult:
-        input_data = MemoryCaptureInput(**data)
-        return self.capture_memory(input_data)
 
+    async def capture(
+        self,
+        db_session: AsyncSession,
+        content: str,
+        type: str = None,
+        subtype: str = None,
+        agent_id: str = None,
+        source_id: str = None,
+        confidence: float = None,
+        importance: float = None,
+        metadata: dict = None
+    ) -> Memory:
+        # 1. Classification
+        classification = self.classifier.classify(content)
+        final_type = type or classification["type"]
+        final_confidence = confidence or classification["confidence"]
+        final_importance = importance or classification["importance"]
 
-# Urdu: NFM-X memory capture engine - Yadashthon ko system mein shamil karne ke liye
+        memory_id = str(uuid.uuid4())
+        content_hash = self._sha256(content)
+        now = datetime.now(timezone.utc)
+
+        # 2. Create models
+        memory = Memory(
+            id=memory_id,
+            root_id=memory_id,
+            version=1,
+            type=MemoryType(final_type),
+            subtype=subtype,
+            content=content,
+            normalized_content=content.lower().strip(),
+            content_hash=content_hash,
+            agent_id=agent_id,
+            source_id=source_id,
+            confidence=final_confidence,
+            importance=final_importance,
+            status=MemoryStatus.ACTIVE,
+            created_at=now,
+            observed_at=now,
+            valid_from=now,
+            metadata=metadata or {}
+        )
+
+        version = MemoryVersion(
+            id=str(uuid.uuid4()),
+            memory_id=memory_id,
+            version=1,
+            content=content,
+            normalized_content=memory.normalized_content,
+            content_hash=content_hash,
+            confidence=final_confidence,
+            importance=final_importance,
+            status=MemoryStatus.ACTIVE,
+            change_type=ChangeType.CREATE,
+            change_reason="Initial capture",
+            metadata=metadata or {},
+            created_at=now,
+            actor_id=agent_id or "system",
+            actor_type="agent"
+        )
+
+        event = MemoryEvent(
+            id=str(uuid.uuid4()),
+            memory_id=memory_id,
+            event_type="create",
+            details={"type": final_type, "content_length": len(content)},
+            timestamp=now,
+            agent_id=agent_id or "system"
+        )
+
+        db_session.add(memory)
+        db_session.add(version)
+        db_session.add(event)
+
+        return memory
+
+# Singleton or factory
+def get_capture_engine() -> MemoryCaptureEngine:
+    return MemoryCaptureEngine()
