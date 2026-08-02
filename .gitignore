@@ -41,23 +41,16 @@ htmlcov/
 .tox/
 .nox/
 
-# Type checking
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Environment
-.env
-.env.local
-.env.*.local
-
-# NFM-X specific
-storage/
+# Database
 *.db
-*.db-shm
-*.db-wal
+*.sqlite
+*.sqlite3
 faiss_index/
-faiss_index.*
+
+# Backups
+backups/
+*.backup
+*.bak
 
 # Logs
 *.log
@@ -67,5 +60,19 @@ logs/
 .DS_Store
 Thumbs.db
 
-# Project specific
-nfm-x.log
+# Node.js (Frontend)
+node_modules/
+package-lock.json
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs
+dist/
+build/
+.cache/
+
+# Environment files
+.env
+.env.local
+.env.*.local
