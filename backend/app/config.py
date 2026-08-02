@@ -23,8 +23,30 @@ class Settings(BaseSettings):
     NFM_DEFAULT_CONFIDENCE: float = 0.7
     NFM_MEMORY_EXPIRY_DAYS: int = 30
 
-    NFM_SEMANTIC_WEIGHT: float = 0.7
-    NFM_KEYWORD_WEIGHT: float = 0.3
+    NFM_VECTOR_BACKEND: str = "faiss"
+
+    # AI Provider settings (optional)
+    NFM_LLM_PROVIDER: str = "ollama"
+    NFM_LLM_MODEL: str = "llama3.2"
+    NFM_LLM_BASE_URL: str = "http://localhost:11434"
+    NFM_LLM_API_KEY: Optional[str] = None
+    NFM_LLM_TIMEOUT: int = 120
+    NFM_LLM_MAX_TOKENS: int = 4096
+    NFM_LLM_TEMPERATURE: float = 0.7
+
+    # Security settings
+    NFM_ENCRYPTION_KEY: Optional[str] = None
+
+    # Background workers
+    NFM_WORKER_COUNT: int = 4
+    NFM_CONSOLIDATION_INTERVAL: int = 3600
+    NFM_BACKUP_INTERVAL: int = 86400
+
+    # Retrieval weights
+    NFM_SEMANTIC_WEIGHT: float = 0.6
+    NFM_KEYWORD_WEIGHT: float = 0.2
+    NFM_GRAPH_WEIGHT: float = 0.15
+    NFM_TEMPORAL_WEIGHT: float = 0.05
 
     NFM_API_TOKEN: Optional[str] = None
     NFM_ENABLE_AUTH: bool = False
