@@ -1,3 +1,4 @@
 """
-NFM-X CLI
+NFM-X CLI Package
 """
+from .main import main
