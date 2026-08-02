@@ -1,4 +1,59 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-body { @apply bg-gray-50; }
+
+/* Custom styles */
+@layer base {
+  html {
+    @apply antialiased;
+  }
+  
+  body {
+    @apply bg-gray-50 text-gray-900;
+  }
+}
+
+@layer components {
+  .card-hover {
+    @apply transition-all duration-200 hover:shadow-lg hover:-translate-y-1;
+  }
+  
+  .btn-primary {
+    @apply bg-primary-600 hover:bg-primary-700 text-white font-medium py-2 px-4 rounded-lg transition-colors;
+  }
+  
+  .btn-secondary {
+    @apply bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-4 rounded-lg transition-colors;
+  }
+  
+  .stat-card {
+    @apply bg-white p-6 rounded-xl shadow-sm border border-gray-100;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Ant Design overrides */
+.ant-layout-sider {
+  @apply shadow-sm;
+}
+
+.ant-menu-dark .ant-menu-item-selected {
+  @apply bg-primary-600;
+}
+
+.ant-table-thead > tr > th {
+  @apply bg-gray-50 text-gray-600 font-medium;
+}
+
+.ant-table-tbody > tr > td {
+  @apply border-b border-gray-100;
+}
+
+.ant-table-tbody > tr:hover > td {
+  @apply bg-gray-50;
+}
