@@ -1,59 +1,56 @@
-from pydantic_settings import BaseSettings
-from pathlib import Path
+"""
+Configuration settings for NFM-X using Pydantic Settings
+"""
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, field_validator
 from typing import Optional
+import os
+from pathlib import Path
+
 
 class Settings(BaseSettings):
-    NFM_HOST: str = "0.0.0.0"
-    NFM_PORT: int = 8765
-    NFM_DEBUG: bool = True
-    NFM_LOG_LEVEL: str = "INFO"
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore"
+    )
+    
+    app_name: str = "NFM-X"
+    app_version: str = "1.0.0"
+    debug: bool = Field(default=False)
+    
+    host: str = Field(default="0.0.0.0")
+    port: int = Field(default=8000, ge=1, le=65535)
+    
+    database_url: str = Field(default="sqlite+aiosqlite:///./storage/nfm-x.db")
+    
+    embedding_model: str = Field(default="all-MiniLM-L6-v2")
+    embedding_dimension: int = Field(default=384)
+    
+    faiss_index_path: str = Field(default="./storage/faiss_index")
+    
+    max_context_length: int = Field(default=4096)
+    default_confidence: float = Field(default=0.8, ge=0.0, le=1.0)
+    default_importance: float = Field(default=0.5, ge=0.0, le=1.0)
+    
+    api_prefix: str = Field(default="/v1")
+    cors_origins: str = Field(default="http://localhost:3000,http://localhost:8000")
+    
+    secret_key: str = Field(default="change-me-in-production")
+    
+    @field_validator('cors_origins', mode='before')
+    @classmethod
+    def parse_cors_origins(cls, v):
+        if isinstance(v, str):
+            return [origin.strip() for origin in v.split(',') if origin.strip()]
+        return v
+    
+    @property
+    def cors_origins_list(self) -> list[str]:
+        return self.cors_origins if isinstance(self.cors_origins, list) else [self.cors_origins]
 
-    NFM_STORAGE_PATH: Path = Path("./storage")
-    NFM_DB_PATH: Path = Path("./storage/nfm.db")
-    NFM_VECTOR_PATH: Path = Path("./storage/vectors")
-
-    NFM_DB_POOL_SIZE: int = 5
-    NFM_DB_MAX_OVERFLOW: int = 10
-
-    NFM_EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
-    NFM_EMBEDDING_DIM: int = 384
-
-    NFM_MAX_CONTEXT_MEMORIES: int = 20
-    NFM_MIN_CONFIDENCE: float = 0.3
-    NFM_DEFAULT_CONFIDENCE: float = 0.7
-    NFM_MEMORY_EXPIRY_DAYS: int = 30
-
-    NFM_VECTOR_BACKEND: str = "faiss"
-
-    # AI Provider settings (optional)
-    NFM_LLM_PROVIDER: str = "ollama"
-    NFM_LLM_MODEL: str = "llama3.2"
-    NFM_LLM_BASE_URL: str = "http://localhost:11434"
-    NFM_LLM_API_KEY: Optional[str] = None
-    NFM_LLM_TIMEOUT: int = 120
-    NFM_LLM_MAX_TOKENS: int = 4096
-    NFM_LLM_TEMPERATURE: float = 0.7
-
-    # Security settings
-    NFM_ENCRYPTION_KEY: Optional[str] = None
-
-    # Background workers
-    NFM_WORKER_COUNT: int = 4
-    NFM_CONSOLIDATION_INTERVAL: int = 3600
-    NFM_BACKUP_INTERVAL: int = 86400
-
-    # Retrieval weights
-    NFM_SEMANTIC_WEIGHT: float = 0.6
-    NFM_KEYWORD_WEIGHT: float = 0.2
-    NFM_GRAPH_WEIGHT: float = 0.15
-    NFM_TEMPORAL_WEIGHT: float = 0.05
-
-    NFM_API_TOKEN: Optional[str] = None
-    NFM_ENABLE_AUTH: bool = False
-
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        extra = "ignore"
 
 settings = Settings()
+Path(settings.faiss_index_path).parent.mkdir(parents=True, exist_ok=True)
+Path("./storage").mkdir(parents=True, exist_ok=True)
