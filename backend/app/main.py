@@ -1,11 +1,14 @@
 """
 NFM-X Main Application
 FastAPI backend for Non-Forgettable Memory Layer
-Supports V1.5, V2, and V3 endpoints
+Supports V1.5, V2, V3, and V4 endpoints
 """
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+# Import configuration
+from backend.app.config import get_config
 
 # Import V1.5 API routers
 from backend.app.api.memory import router as memory_router
@@ -31,23 +34,30 @@ from backend.app.api.sync import router as sync_router
 from backend.app.api.simulation import router as simulation_router
 from backend.app.api.compression import router as compression_router
 
+# Import V4 API routers
+from backend.app.api.health import router as health_router
+
+# Get configuration
+config = get_config()
+
 # Create FastAPI app
 app = FastAPI(
-    title="NFM-X",
-    description="Non-Forgettable Memory Layer API - V1.5, V2, V3",
-    version="3.0.0",
+    title=config.app_name,
+    description="Non-Forgettable Memory Layer API - V1.5, V2, V3, V4",
+    version=config.version,
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json"
 )
 
-# CORS middleware
+# CORS middleware with configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=config.cors.allow_origins,
+    allow_credentials=config.cors.allow_credentials,
+    allow_methods=config.cors.allow_methods,
+    allow_headers=config.cors.allow_headers,
+    expose_headers=config.cors.expose_headers,
 )
 
 
@@ -75,24 +85,30 @@ app.include_router(sync_router, prefix="/api/v1", tags=["Sync"])
 app.include_router(simulation_router, prefix="/api/v1", tags=["Simulation"])
 app.include_router(compression_router, prefix="/api/v1", tags=["Compression"])
 
+# Include V4 routers
+app.include_router(health_router, prefix="/health", tags=["Health Check"])
+
 
 # Root endpoint
 @app.get("/")
 async def root():
     return {
-        "name": "NFM-X",
-        "version": "3.0.0",
+        "name": config.app_name,
+        "version": config.version,
         "description": "Non-Forgettable Memory Layer",
         "docs": "/docs",
+        "health": "/health/detailed",
         "versions": {
             "v1.5": "/api/docs",
             "v2": "/api/v2/docs",
-            "v3": "/api/v1/docs"
-        }
+            "v3": "/api/v1/docs",
+            "v4": "/health/detailed"
+        },
+        "environment": config.environment
     }
 
 
-# Health check
+# Health check endpoint (kept for backward compatibility)
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "version": "3.0.0"}
+    return {"status": "healthy", "version": config.version}
