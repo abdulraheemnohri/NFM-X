@@ -1,72 +1,80 @@
+"""
+NFM-X Python SDK Client
+"""
+from typing import Optional, Dict, Any, List
+import asyncio
 import httpx
-import time
-from typing import Optional, Dict, Any
-
-from .models import MemoryCreate, SearchQuery, ContextQuery
+from .models import Memory, MemoryVersion, MemoryCreateRequest, MemoryUpdateRequest, SearchRequest, SearchResponse, ContextRequest, ContextResponse, MemoryType, MemoryStatus, ChangeType
 
 class NFMClient:
-    def __init__(self, base_url: str = "http://localhost:8765", api_key: Optional[str] = None, timeout: float = 30.0, max_retries: int = 3):
+    def __init__(self, base_url="http://localhost:8000", api_version="v1", timeout=30.0):
         self.base_url = base_url.rstrip("/")
-        self.api_key = api_key
+        self.api_version = api_version
         self.timeout = timeout
-        self.max_retries = max_retries
-        self._client = httpx.Client(base_url=self.base_url, timeout=timeout)
+        self._client = None
 
-    def _headers(self) -> Dict[str, str]:
-        h = {"Content-Type": "application/json", "Accept": "application/json"}
-        if self.api_key:
-            h["Authorization"] = f"Bearer {self.api_key}"
-        return h
-
-    def _request(self, method: str, path: str, **kwargs) -> Dict[str, Any]:
-        kwargs["headers"] = {**self._headers(), **kwargs.get("headers", {})}
-        retries = 0
-        while True:
-            try:
-                response = self._client.request(method, path, **kwargs)
-                response.raise_for_status()
-                return response.json()
-            except httpx.HTTPStatusError as e:
-                raise Exception(f"API error {e.response.status_code}: {e.response.text}")
-            except (httpx.RequestError, httpx.TimeoutException) as e:
-                retries += 1
-                if retries > self.max_retries:
-                    raise Exception(f"Request failed after {self.max_retries} retries: {str(e)}")
-                time.sleep(0.5 * retries)
-            except Exception as e:
-                raise Exception(f"Request failed: {str(e)}")
-
-    def create_memory(self, memory: MemoryCreate) -> Dict[str, Any]:
-        return self._request("POST", "/v1/memory/", json=memory.model_dump(exclude_none=True))
-
-    def get_memory(self, memory_id: str) -> Dict[str, Any]:
-        return self._request("GET", f"/v1/memory/{memory_id}")
-
-    def list_memories(self, agent_id: Optional[str] = None, memory_type: Optional[str] = None, limit: int = 50, offset: int = 0) -> Dict[str, Any]:
-        params = {"limit": limit, "offset": offset}
-        if agent_id:
-            params["agent_id"] = agent_id
-        if memory_type:
-            params["memory_type"] = memory_type
-        return self._request("GET", "/v1/memory/", params=params)
-
-    def search(self, query: SearchQuery) -> Dict[str, Any]:
-        return self._request("POST", "/v1/memory/search", json=query.model_dump(exclude_none=True))
-
-    def get_context(self, query: ContextQuery) -> Dict[str, Any]:
-        return self._request("POST", "/v1/memory/context", json=query.model_dump(exclude_none=True))
-
-    def get_history(self, memory_id: str) -> Dict[str, Any]:
-        return self._request("GET", f"/v1/memory/{memory_id}/history")
-
-    def health(self) -> Dict[str, Any]:
-        return self._request("GET", "/health")
-
-    def close(self):
-        self._client.close()
-
-    def __enter__(self):
+    async def __aenter__(self):
+        self._client = httpx.AsyncClient(base_url=self.base_url, timeout=self.timeout)
         return self
 
-    def __exit__(self, *args):
-        self.close()
+    async def __aexit__(self, *args):
+        if self._client:
+            await self._client.aclose()
+
+    def _build_url(self, path):
+        return f"{self.base_url}/{self.api_version}{path}"
+
+    async def _request(self, method, path, data=None, params=None, response_model=None):
+        url = self._build_url(path)
+        for attempt in range(3):
+            try:
+                response = await self._client.request(method, url, json=data, params=params, timeout=self.timeout)
+                if response.status_code >= 400:
+                    error = response.json() if response.text else {"error": "Unknown"}
+                    if response.status_code == 404:
+                        raise ValueError(f"Not found: {path}")
+                    raise RuntimeError(f"API error: {response.status_code} - {error.get('error')}")
+                if response.status_code == 204:
+                    return None
+                response_data = response.json() if response.text else {}
+                return response_model(**response_data) if response_model else response_data
+            except (httpx.ConnectError, httpx.TimeoutException) as e:
+                if attempt == 2:
+                    raise ConnectionError(f"Connection failed: {e}")
+                await asyncio.sleep(0.5)
+
+    async def health_check(self):
+        return await self._request("GET", "/health")
+
+    async def create_memory(self, content, memory_type=None, source=None, author_id=None, confidence=None, importance=None, metadata=None, tags=None):
+        req = MemoryCreateRequest(content=content, memory_type=memory_type, source=source, author_id=author_id, confidence=confidence, importance=importance, metadata=metadata, tags=tags)
+        return await self._request("POST", "/memory/", data=req.dict(), response_model=Memory)
+
+    async def get_memory(self, memory_id):
+        return await self._request("GET", f"/memory/{memory_id}", response_model=Memory)
+
+    async def list_memories(self, limit=50, offset=0, memory_type=None, status=None, author_id=None):
+        params = {"limit": limit, "offset": offset}
+        if memory_type:
+            params["memory_type"] = memory_type.value
+        if status:
+            params["status"] = status.value
+        if author_id:
+            params["author_id"] = author_id
+        from .models import MemoryListResponse
+        return await self._request("GET", "/memory/", params=params, response_model=MemoryListResponse)
+
+    async def update_memory(self, memory_id, content, change_type, change_reason, confidence=None, importance=None):
+        req = MemoryUpdateRequest(content=content, change_type=change_type, change_reason=change_reason, confidence=confidence, importance=importance)
+        return await self._request("PUT", f"/memory/{memory_id}", data=req.dict(), response_model=Memory)
+
+    async def delete_memory(self, memory_id):
+        await self._request("DELETE", f"/memory/{memory_id}")
+
+    async def search(self, query, limit=10, memory_types=None, status=None):
+        req = SearchRequest(query=query, limit=limit, memory_types=memory_types, status=status)
+        return await self._request("POST", "/memory/search", data=req.dict(), response_model=SearchResponse)
+
+    async def get_context(self, query, limit=10, max_tokens=None, format="text"):
+        req = ContextRequest(query=query, limit=limit, max_tokens=max_tokens, format=format)
+        return await self._request("POST", "/memory/context", data=req.dict(), response_model=ContextResponse)

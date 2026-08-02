@@ -1,4 +1,7 @@
+"""
+NFM-X Python SDK
+"""
 from .client import NFMClient
-from .models import MemoryCreate, MemoryUpdate, SearchQuery, ContextQuery
+from .models import Memory, MemoryVersion, MemoryType, MemoryStatus, ChangeType
 
-__all__ = ["NFMClient", "MemoryCreate", "MemoryUpdate", "SearchQuery", "ContextQuery"]
+__all__ = ["NFMClient", "Memory", "MemoryVersion", "MemoryType", "MemoryStatus", "ChangeType"]
