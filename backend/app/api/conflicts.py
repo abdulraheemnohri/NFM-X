@@ -1,62 +1,44 @@
+"""
+NFM-X Conflicts API
+"""
 from fastapi import APIRouter, Depends, HTTPException
+from typing import List, Optional
 from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
 from sqlalchemy import select
+from ..memory.models import Memory
+from ..storage.database import get_db
 
-from backend.app.storage.database import get_db_session
-from backend.app.memory.models import MemoryConflict
-from backend.app.memory.conflicts import ConflictDetector
-
-router = APIRouter()
+router = APIRouter(prefix="/conflicts", tags=["Conflicts"])
 
 class ConflictResponse(BaseModel):
     id: str
     memory_a_id: str
     memory_b_id: str
     conflict_type: str
-    description: Optional[str] = None
-    severity: float
     status: str
-    created_at: str
+    description: Optional[str]
 
-@router.get("/conflicts", response_model=List[ConflictResponse])
-async def list_conflicts(
-    status: Optional[str] = None,
-    db_session=Depends(get_db_session)
-):
-    stmt = select(MemoryConflict)
-    if status:
-        stmt = stmt.where(MemoryConflict.status == status)
-    stmt = stmt.order_by(MemoryConflict.created_at.desc())
-    result = await db_session.execute(stmt)
+class ConflictListResponse(BaseModel):
+    conflicts: List[ConflictResponse]
+    total: int
+
+@router.get("/", response_model=ConflictListResponse)
+async def list_conflicts(db=Depends(get_db)):
+    result = await db.execute(
+        select(Memory).where(Memory.metadata["is_conflict"].as_boolean() == True)
+    )
     conflicts = result.scalars().all()
-    return [
-        ConflictResponse(
-            id=c.id,
-            memory_a_id=c.memory_a_id,
-            memory_b_id=c.memory_b_id,
-            conflict_type=c.conflict_type,
-            description=c.description,
-            severity=c.severity,
-            status=c.status,
-            created_at=c.created_at.isoformat() if c.created_at else None
-        )
-        for c in conflicts
-    ]
-
-@router.post("/memory/{memory_id}/scan-conflicts")
-async def scan_memory_conflicts(memory_id: str, db_session=Depends(get_db_session)):
-    detector = ConflictDetector()
-    conflicts = await detector.scan_for_conflicts(db_session, memory_id)
-    created = []
-    for c in conflicts:
-        record = await detector.create_conflict_record(
-            db_session=db_session,
-            memory_a_id=c["memory_a_id"],
-            memory_b_id=c["memory_b_id"],
-            conflict_type=c["conflict_type"],
-            description=c["description"],
-            severity=c["severity"]
-        )
-        created.append(record.id)
-    return {"scanned": True, "conflicts_found": len(conflicts), "conflict_ids": created}
+    
+    conflict_responses = []
+    for mem in conflicts:
+        metadata = mem.metadata or {}
+        conflict_responses.append(ConflictResponse(
+            id=metadata.get("conflict_id", mem.id),
+            memory_a_id=metadata.get("memory_a_id", ""),
+            memory_b_id=metadata.get("memory_b_id", ""),
+            conflict_type=metadata.get("conflict_type", "unknown"),
+            status=metadata.get("status", "detected"),
+            description=mem.content
+        ))
+    
+    return ConflictListResponse(conflicts=conflict_responses, total=len(conflict_responses))
