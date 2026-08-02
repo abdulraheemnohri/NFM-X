@@ -1,33 +1,8 @@
 """
-Memory module for NFM-X
-Contains models, classification, capture, and evolution logic
+Memory module
 """
-from .models import (
-    Memory,
-    MemoryVersion,
-    MemoryEvent,
-    MemoryRelationship,
-    MemoryEmbedding,
-    MemoryType,
-    MemoryStatus,
-    EventType,
-    RelationshipType,
-    ChangeType,
-)
-from .classification import MemoryClassifier
-from .capture import MemoryCapture
+from .models import Memory, MemoryVersion, MemoryEvent, MemoryType, MemoryStatus, EventType, ChangeType
+from .classification import MemoryClassifier, classifier
+from .capture import MemoryCapture, capture_handler
 
-__all__ = [
-    "Memory",
-    "MemoryVersion",
-    "MemoryEvent",
-    "MemoryRelationship",
-    "MemoryEmbedding",
-    "MemoryType",
-    "MemoryStatus",
-    "EventType",
-    "RelationshipType",
-    "ChangeType",
-    "MemoryClassifier",
-    "MemoryCapture",
-]
+__all__ = ["Memory", "MemoryVersion", "MemoryEvent", "MemoryType", "MemoryStatus", "EventType", "ChangeType", "MemoryClassifier", "classifier", "MemoryCapture", "capture_handler"]

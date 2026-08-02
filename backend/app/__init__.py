@@ -1,3 +1,3 @@
 """
-NFM-X Backend Application Package
+NFM-X Backend Application
 """

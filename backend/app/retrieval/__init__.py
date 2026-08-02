@@ -1,5 +1,5 @@
 """
-Retrieval module for NFM-X
+Retrieval module
 """
 from .engine import HybridRetrievalEngine
 
