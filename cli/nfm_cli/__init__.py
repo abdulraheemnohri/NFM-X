@@ -1,1 +1,3 @@
-# CLI Package
+"""
+NFM-X CLI
+"""
