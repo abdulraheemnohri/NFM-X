@@ -1,4 +1,1 @@
-"""
-NFM-X CLI Package
-"""
-from .main import main
+# NFM-X CLI Module
