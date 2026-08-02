@@ -1,70 +1,23 @@
 """
-Database engine, session management, and initialization for NFM-X
-Uses SQLAlchemy 2.0 with async aiosqlite
+NFM-X Database Module
 """
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy.orm import declarative_base
-from sqlalchemy import text
-import asyncio
-from contextlib import asynccontextmanager
-from typing import AsyncGenerator
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import DeclarativeBase
+import os
 
-from ..config import settings
+class Base(DeclarativeBase):
+    pass
 
-Base = declarative_base()
+engine = create_async_engine(os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./nfm.db"))
 
-engine = create_async_engine(
-    settings.database_url,
-    echo=settings.debug,
-    future=True
-)
+AsyncSessionLocal = async_sessionmaker(bind=engine, class_=AsyncSession)
 
-AsyncSessionLocal = async_sessionmaker(
-    engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autocommit=False,
-    autoflush=False
-)
-
-
-async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
+async def get_db():
     async with AsyncSessionLocal() as session:
-        try:
-            yield session
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
-        finally:
-            await session.close()
+        yield session
 
+async def init_db():
+    pass
 
-@asynccontextmanager
-async def get_db_session_ctx() -> AsyncGenerator[AsyncSession, None]:
-    async with AsyncSessionLocal() as session:
-        try:
-            yield session
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
-        finally:
-            await session.close()
-
-
-def get_db_engine():
-    return engine
-
-
-async def init_db() -> None:
-    async with engine.begin() as conn:
-        if engine.dialect.name == "sqlite":
-            await conn.execute(text("PRAGMA journal_mode=WAL"))
-            await conn.execute(text("PRAGMA synchronous=NORMAL"))
-            await conn.execute(text("PRAGMA foreign_keys=ON"))
-        await conn.run_sync(Base.metadata.create_all)
-
-
-async def close_db() -> None:
+async def close_db():
     await engine.dispose()

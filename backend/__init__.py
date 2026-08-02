@@ -1,3 +1,4 @@
 """
-NFM-X Backend
+NFM-X Backend Package
 """
+__version__ = "1.5.0"

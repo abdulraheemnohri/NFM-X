@@ -1,6 +1,4 @@
 """
-Storage module
+NFM-X Storage Module
 """
-from .database import get_db_session, init_db, Base
-
-__all__ = ["get_db_session", "init_db", "Base"]
+from .database import Base, init_db, close_db
