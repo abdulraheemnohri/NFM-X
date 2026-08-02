@@ -1,0 +1,13 @@
+{
+  "name": "nfm-client",
+  "version": "1.5.0",
+  "description": "NFM-X TypeScript SDK",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0"
+  }
+}

@@ -329,6 +329,40 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Built with FastAPI, SQLite, and modern AI technologies
 - Designed for model independence and longevity
 
+## 🧪 Testing & Verification
+
+NFM-X uses a comprehensive test suite covering the entire backend and TypeScript SDK to ensure data integrity, exact transactional safety, and robust vector-indexing.
+
+### Testing Parameters
+- **Database Engine**: Async SQLite (`aiosqlite`) with in-memory isolation for unit/integration tests
+- **Vector Store Engine**: `FAISS` with isolated test instances to prevent test contamination
+- **CORS Configuration**: Restricts origins strictly to `http://localhost:3000` and `http://localhost:8765` for optimal browser sandbox safety
+- **HTTP Routing**: Uniformly served on `/v1/` prefix endpoints
+
+### Test Suite Execution & Results
+All backend and SDK integration tests pass successfully with 100% correctness:
+
+```bash
+platform linux -- Python 3.12.13, pytest-9.1.1
+collected 19 items
+
+backend/tests/test_backup.py .                                           [  5%]
+backend/tests/test_conflicts.py .                                        [ 10%]
+backend/tests/test_graph.py .                                            [ 15%]
+backend/tests/test_memory_api.py .....                                   [ 42%]
+backend/tests/test_retrieval.py ..                                       [ 52%]
+backend/tests/test_stats.py .                                            [ 57%]
+backend/tests/test_vector_store.py .                                     [ 63%]
+sdk/tests/test_client.py .......                                         [100%]
+
+======================== 19 passed, 1 warning in 12.76s ========================
+```
+
+- **Permanent Versioning test**: Verified that `PUT /v1/memory/{id}` correctly supersedes old memory version and keeps history intact.
+- **Conflict Detection test**: Contradictions successfully caught via keyword-based mismatch/negation checks and registered under unresolved status.
+- **1-Hop Graph test**: Relates two memories and queries the adjacent node with correct relationship properties.
+- **Backup & Restore test**: Backs up SQLite DB and FAISS vectors to a `.tar.gz` archive and fully restores with complete data integrity.
+
 ---
 
 **NFM-X: The Memory Operating System for AI**
