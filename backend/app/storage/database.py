@@ -1,39 +1,70 @@
+"""
+Database engine, session management, and initialization for NFM-X
+Uses SQLAlchemy 2.0 with async aiosqlite
+"""
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy import event
-from pathlib import Path
-import logging
+from sqlalchemy.orm import declarative_base
+from sqlalchemy import text
+import asyncio
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator
 
-from backend.app.config import settings
+from ..config import settings
 
-logger = logging.getLogger(__name__)
-_engine = None
-_async_session_maker = None
+Base = declarative_base()
 
-async def init_database(db_path: str = None):
-    global _engine, _async_session_maker
-    db_path = db_path or str(settings.NFM_DB_PATH)
-    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+engine = create_async_engine(
+    settings.database_url,
+    echo=settings.debug,
+    future=True
+)
 
-    _engine = create_async_engine(
-        f"sqlite+aiosqlite:///{db_path}",
-        echo=settings.NFM_DEBUG,
-        pool_pre_ping=True
-    )
-    _async_session_maker = async_sessionmaker(
-        _engine, class_=AsyncSession, expire_on_commit=False
-    )
+AsyncSessionLocal = async_sessionmaker(
+    engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+    autocommit=False,
+    autoflush=False
+)
 
-    @event.listens_for(_engine.sync_engine, "connect")
-    def set_sqlite_pragma(dbapi_conn, _):
-        cursor = dbapi_conn.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.close()
 
-    from backend.app.memory.models import Base as MemoryBase
-    async with _engine.begin() as conn:
-        await conn.run_sync(MemoryBase.metadata.create_all)
-    logger.info("Database initialized")
+async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
 
-async def get_db_session() -> AsyncSession:
-    async with _async_session_maker() as session:
-        yield session
+
+@asynccontextmanager
+async def get_db_session_ctx() -> AsyncGenerator[AsyncSession, None]:
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
+
+
+def get_db_engine():
+    return engine
+
+
+async def init_db() -> None:
+    async with engine.begin() as conn:
+        if engine.dialect.name == "sqlite":
+            await conn.execute(text("PRAGMA journal_mode=WAL"))
+            await conn.execute(text("PRAGMA synchronous=NORMAL"))
+            await conn.execute(text("PRAGMA foreign_keys=ON"))
+        await conn.run_sync(Base.metadata.create_all)
+
+
+async def close_db() -> None:
+    await engine.dispose()

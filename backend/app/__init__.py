@@ -1,6 +1,3 @@
 """
-NFM-X Backend Package
-Non-Forgettable Evolutionary AI Memory Platform
+NFM-X Backend Application Package
 """
-
-__version__ = "1.0.0"

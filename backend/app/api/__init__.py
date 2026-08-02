@@ -1,1 +1,4 @@
-# API Initialization
+"""
+API module for NFM-X
+Contains all FastAPI routers
+"""
