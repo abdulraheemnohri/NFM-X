@@ -7,8 +7,15 @@ Supports V1.5, V2, V3, and V4 endpoints
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# Import configuration
+# Import configuration and logging first
 from backend.app.config import get_config
+from backend.app.logging_config import setup_logging
+
+# Setup logging before any other imports
+setup_logging()
+
+# Import middleware
+from backend.app.middleware.rate_limit import rate_limit_middleware
 
 # Import V1.5 API routers
 from backend.app.api.memory import router as memory_router
@@ -39,6 +46,10 @@ from backend.app.api.health import router as health_router
 
 # Get configuration
 config = get_config()
+import logging
+logger = logging.getLogger(__name__)
+
+logger.info(f"Starting {config.app_name} v{config.version} in {config.environment} mode")
 
 # Create FastAPI app
 app = FastAPI(
@@ -59,6 +70,13 @@ app.add_middleware(
     allow_headers=config.cors.allow_headers,
     expose_headers=config.cors.expose_headers,
 )
+
+# Rate limiting middleware (optional)
+if config.rate_limit.enabled:
+    app.middleware("http")(rate_limit_middleware)
+    logger.info(f"Rate limiting enabled: {config.rate_limit.requests_per_minute} req/min")
+else:
+    logger.info("Rate limiting is disabled")
 
 
 # Include V1.5 routers
@@ -104,11 +122,17 @@ async def root():
             "v3": "/api/v1/docs",
             "v4": "/health/detailed"
         },
-        "environment": config.environment
+        "environment": config.environment,
+        "features": {
+            "ocr_enabled": config.ocr.enabled,
+            "compression_enabled": config.compression.enabled,
+            "sync_enabled": config.sync.enabled,
+            "rate_limiting_enabled": config.rate_limit.enabled
+        }
     }
 
 
 # Health check endpoint (kept for backward compatibility)
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "version": config.version}
+    return {"status": "healthy", "version": config.version, "environment": config.environment}
