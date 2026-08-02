@@ -1,3 +1,3 @@
-import { NFMClient } from '../../../sdk/typescript/src/client';
-
-export const api = new NFMClient({ baseUrl: '' }); // Uses Vite proxy
+const API_BASE = "http://localhost:8000";
+export async function fetchMemories() { return []; }
+export async function getStats() { return {}; }
