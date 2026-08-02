@@ -145,8 +145,60 @@ class MemoryEmbedding(Base):
     dimension = Column(Integer, nullable=True)
     created_at = Column(DateTime, nullable=False, default=now_utc)
 
+class MemoryConflict(Base):
+    __tablename__ = "memory_conflicts"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    memory_a_id = Column(String(36), ForeignKey('memories.id'), nullable=False, index=True)
+    memory_b_id = Column(String(36), ForeignKey('memories.id'), nullable=False, index=True)
+    conflict_type = Column(String(50), nullable=False)
+    description = Column(Text, nullable=True)
+    severity = Column(Float, nullable=False, default=0.5)
+    status = Column(String(20), nullable=False, default="unresolved") # unresolved, resolved
+    created_at = Column(DateTime, nullable=False, default=now_utc)
+
+class MemoryPattern(Base):
+    __tablename__ = "memory_patterns"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    pattern_type = Column(String(50), nullable=False)
+    name = Column(String(100), nullable=False)
+    description = Column(Text, nullable=True)
+    supporting_memories = Column(JSON, nullable=False)  # list of memory IDs
+    pattern_data = Column(JSON, nullable=True)
+    confidence = Column(Float, nullable=False, default=0.5)
+    strength = Column(Float, nullable=False, default=0.5)
+    discovered_at = Column(DateTime, nullable=False, default=now_utc)
+
+class MemoryProcedure(Base):
+    __tablename__ = "memory_procedures"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String(100), nullable=False, index=True)
+    description = Column(Text, nullable=True)
+    execution_count = Column(Integer, nullable=False, default=0)
+    success_count = Column(Integer, nullable=False, default=0)
+    failure_count = Column(Integer, nullable=False, default=0)
+    success_rate = Column(Float, nullable=False, default=0.0)
+    last_executed = Column(DateTime, nullable=True)
+
+    meta = Column("metadata", JSON, nullable=True, default=dict)
+
+class MemorySkill(Base):
+    __tablename__ = "memory_skills"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String(100), nullable=False, index=True)
+    description = Column(Text, nullable=True)
+    source_procedure_ids = Column(JSON, nullable=False)  # list of procedure IDs
+    success_rate = Column(Float, nullable=False, default=0.0)
+    execution_count = Column(Integer, nullable=False, default=0)
+    confidence = Column(Float, nullable=False, default=0.5)
+    created_at = Column(DateTime, nullable=False, default=now_utc)
+
 # Assign properties after class declarations to bypass SQLAlchemy reserved word checks
 # while preserving property-like access for .metadata across all code.
 Memory.metadata = property(lambda self: self.meta, lambda self, val: setattr(self, 'meta', val))
 MemoryVersion.metadata = property(lambda self: self.meta, lambda self, val: setattr(self, 'meta', val))
 MemoryRelationship.metadata = property(lambda self: self.meta, lambda self, val: setattr(self, 'meta', val))
+MemoryProcedure.metadata = property(lambda self: self.meta, lambda self, val: setattr(self, 'meta', val))
