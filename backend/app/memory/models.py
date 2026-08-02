@@ -1,92 +1,60 @@
 """
-SQLAlchemy models for NFM-X memory layer
+NFM-X Memory Models
 """
-from sqlalchemy import Column, Integer, String, Text, Float, DateTime, ForeignKey, JSON, Index, Enum, func
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, String, Text, DateTime, Float, JSON, Enum
+from sqlalchemy.orm import relationship, declarative_base
 from datetime import datetime, timezone
-from typing import Optional, Dict, Any, List
-from enum import Enum as PyEnum
+import uuid
 from ..storage.database import Base
+from enum import Enum as PyEnum
 
-class MemoryType(str, PyEnum):
-    FACT = "fact"; CONCEPT = "concept"; PROCEDURE = "procedure"; EXPERIENCE = "experience"; CAUSAL = "causal"; DECISION = "decision"; OBSERVATION = "observation"; HYPOTHESIS = "hypothesis"; GOAL = "goal"; PLAN = "plan"
+class MemoryStatus(PyEnum):
+    ACTIVE = "ACTIVE"
+    ARCHIVED = "ARCHIVED"
+    DELETED = "DELETED"
+    MERGED = "MERGED"
 
-class MemoryStatus(str, PyEnum):
-    ACTIVE = "active"; ARCHIVED = "archived"; DELETED = "deleted"; WORKING = "working"
+class MemoryType(PyEnum):
+    TEXT = "TEXT"
+    CONVERSATION = "CONVERSATION"
+    DOCUMENT = "DOCUMENT"
+    CODE = "CODE"
+    IMAGE = "IMAGE"
+    AUDIO = "AUDIO"
+    VIDEO = "VIDEO"
+    STRUCTURED = "STRUCTURED"
 
-class EventType(str, PyEnum):
-    CREATED = "created"; VERSIONED = "versioned"; DELETED = "deleted"; ARCHIVED = "archived"; TAGGED = "tagged"; RELATED = "related"; CONFLICT = "conflict"; CONSOLIDATED = "consolidated"
-
-class RelationshipType(str, PyEnum):
-    RELATED = "related"; SUBSUMES = "subsumes"; CONTRADICTS = "contradicts"; SUPPORTS = "supports"; EXTENDS = "extends"; CAUSES = "causes"; DEPENDS_ON = "depends_on"
-
-class ChangeType(str, PyEnum):
-    CORRECT = "correct"; REFINES = "refine"; EXPAND = "expand"; SUPERSEDE = "supersede"; CLARIFY = "clarify"; SIMPLIFY = "simplify"
+class MemoryPriority(PyEnum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
 
 class Memory(Base):
     __tablename__ = "memories"
-    id: str = Column(String(36), primary_key=True, index=True)
-    content: str = Column(Text, nullable=False)
-    content_hash: str = Column(String(64), nullable=False, index=True)
-    memory_type: MemoryType = Column(Enum(MemoryType), nullable=False, default=MemoryType.FACT)
-    confidence: Float = Column(Float, nullable=False, default=0.8)
-    importance: Float = Column(Float, nullable=False, default=0.5)
-    status: MemoryStatus = Column(Enum(MemoryStatus), nullable=False, default=MemoryStatus.ACTIVE, index=True)
-    source: str = Column(String(500), nullable=True)
-    source_type: str = Column(String(50), nullable=True)
-    author_id: str = Column(String(100), nullable=True, index=True)
-    created_at: datetime = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
-    updated_at: datetime = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
-    metadata: Dict[str, Any] = Column(JSON, nullable=False, default=dict)
-    tags: List[str] = Column(JSON, nullable=False, default=list)
-
-class MemoryVersion(Base):
-    __tablename__ = "memory_versions"
-    id: str = Column(String(36), primary_key=True, index=True)
-    memory_id: str = Column(String(36), ForeignKey("memories.id", ondelete="CASCADE"), nullable=False, index=True)
-    content: str = Column(Text, nullable=False)
-    content_hash: str = Column(String(64), nullable=False)
-    version_number: int = Column(Integer, nullable=False)
-    change_type: ChangeType = Column(Enum(ChangeType), nullable=False)
-    change_reason: str = Column(Text, nullable=True)
-    confidence: Float = Column(Float, nullable=False)
-    importance: Float = Column(Float, nullable=False)
-    status: MemoryStatus = Column(Enum(MemoryStatus), nullable=False, default=MemoryStatus.ACTIVE)
-    actor_id: str = Column(String(100), nullable=True)
-    actor_type: str = Column(String(50), nullable=True)
-    parent_version_id: Optional[str] = Column(String(36), nullable=True)
-    created_at: datetime = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
-
-class MemoryEvent(Base):
-    __tablename__ = "memory_events"
-    id: str = Column(String(36), primary_key=True, index=True)
-    memory_id: str = Column(String(36), ForeignKey("memories.id", ondelete="CASCADE"), nullable=False, index=True)
-    version_id: Optional[str] = Column(String(36), ForeignKey("memory_versions.id", ondelete="SET NULL"), nullable=True)
-    event_type: EventType = Column(Enum(EventType), nullable=False, index=True)
-    description: str = Column(Text, nullable=True)
-    actor_id: str = Column(String(100), nullable=True)
-    actor_type: str = Column(String(50), nullable=True)
-    metadata: Dict[str, Any] = Column(JSON, nullable=False, default=dict)
-    created_at: datetime = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
-
-class MemoryRelationship(Base):
-    __tablename__ = "memory_relationships"
-    id: str = Column(String(36), primary_key=True, index=True)
-    source_id: str = Column(String(36), ForeignKey("memories.id", ondelete="CASCADE"), nullable=False, index=True)
-    target_id: str = Column(String(36), ForeignKey("memories.id", ondelete="CASCADE"), nullable=False, index=True)
-    relationship_type: RelationshipType = Column(Enum(RelationshipType), nullable=False, index=True)
-    confidence: Float = Column(Float, nullable=False, default=1.0)
-    description: str = Column(Text, nullable=True)
-    metadata: Dict[str, Any] = Column(JSON, nullable=False, default=dict)
-    created_at: datetime = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
-
-class MemoryEmbedding(Base):
-    __tablename__ = "memory_embeddings"
-    id: str = Column(String(36), primary_key=True, index=True)
-    memory_id: str = Column(String(36), ForeignKey("memories.id", ondelete="CASCADE"), nullable=False, index=True)
-    version_id: Optional[str] = Column(String(36), ForeignKey("memory_versions.id", ondelete="SET NULL"), nullable=True)
-    embedding: List[Float] = Column(JSON, nullable=False)
-    model_name: str = Column(String(100), nullable=False)
-    dimension: int = Column(Integer, nullable=False)
-    metadata: Dict[str, Any] = Column(JSON, nullable=False, default=dict)
-    created_at: datetime = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    content = Column(Text, nullable=False)
+    content_hash = Column(String(64), index=True)
+    title = Column(String(500), index=True)
+    description = Column(String(2000))
+    memory_type = Column(Enum(MemoryType), default=MemoryType.TEXT, index=True)
+    status = Column(Enum(MemoryStatus), default=MemoryStatus.ACTIVE, index=True)
+    version = Column(Integer, default=1)
+    parent_id = Column(String(36), nullable=True, index=True)
+    source = Column(String(1000))
+    source_id = Column(String(36))
+    author = Column(String(255))
+    tags = Column(JSON, default=[])
+    categories = Column(JSON, default=[])
+    priority = Column(Enum(MemoryPriority), default=MemoryPriority.MEDIUM)
+    embedding = Column(JSON, nullable=True)
+    embedding_model = Column(String(100))
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    archived_at = Column(DateTime(timezone=True), nullable=True)
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+    access_count = Column(Integer, default=0)
+    relevance_score = Column(Float, default=0.0)
+    metadata = Column(JSON, default={})
+    parent = relationship("Memory", remote_side=[parent_id], back_populates="children")
+    children = relationship("Memory", remote_side=[id], back_populates="parent")
