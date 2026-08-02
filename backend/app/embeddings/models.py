@@ -1,24 +1,50 @@
-from sentence_transformers import SentenceTransformer
-from typing import List
+"""
+Embedding model wrapper for NFM-X
+"""
+from typing import Optional, List
+from dataclasses import dataclass
+from enum import Enum
+import numpy as np
+from ..config import settings
+
+class EmbeddingBackend(str, Enum):
+    SENTENCE_TRANSFORMERS = "sentence_transformers"
+
+@dataclass
+class EmbeddingConfig:
+    model_name: str = settings.embedding_model
+    backend: EmbeddingBackend = EmbeddingBackend.SENTENCE_TRANSFORMERS
+    device: str = "cpu"
+    batch_size: int = 32
+    normalize: bool = True
 
 class EmbeddingModel:
-    def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
-        self.model = SentenceTransformer(model_name)
-        self.dimension = self.model.get_sentence_embedding_dimension()
+    def __init__(self, config=None):
+        self.config = config or EmbeddingConfig()
+        self._model = None
+        self._is_loaded = False
 
-    def embed(self, text: str) -> List[float]:
-        embedding = self.model.encode(text, convert_to_numpy=True)
-        return embedding.tolist()
+    def _load_model(self):
+        if self._is_loaded:
+            return
+        try:
+            from sentence_transformers import SentenceTransformer
+            self._model = SentenceTransformer(self.config.model_name)
+            self._is_loaded = True
+        except ImportError:
+            raise ImportError("sentence-transformers not installed")
 
-    def embed_batch(self, texts: List[str]) -> List[List[float]]:
-        embeddings = self.model.encode(texts, convert_to_numpy=True)
-        return embeddings.tolist()
+    def encode(self, text: str):
+        self._load_model()
+        return self._model.encode(text, normalize_embeddings=self.config.normalize)
 
-# Singleton
-_embedding_model = None
+    def encode_batch(self, texts: List[str]):
+        self._load_model()
+        return self._model.encode(texts, batch_size=self.config.batch_size, normalize_embeddings=self.config.normalize)
 
-def get_embedding_model() -> EmbeddingModel:
-    global _embedding_model
-    if _embedding_model is None:
-        _embedding_model = EmbeddingModel()
-    return _embedding_model
+    @property
+    def dimension(self):
+        self._load_model()
+        return self._model.get_sentence_embedding_dimension()
+
+embedding_model = EmbeddingModel()
