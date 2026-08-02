@@ -7,7 +7,11 @@ from datetime import datetime, timezone
 
 from .config import settings
 from .storage.database import init_database
-from .api import memory, search, context, conflicts, graph, stats, evolution, multimodal, ocr, replay, debugger
+from .api import (
+    memory, search, context, conflicts, graph, stats, evolution,
+    multimodal, ocr, replay, debugger, checkpoints, world_model,
+    predictions, strategy, causal_advanced, sharing, sync, simulation, compression
+)
 
 logging.basicConfig(
     level=settings.NFM_LOG_LEVEL,
@@ -64,6 +68,17 @@ app.include_router(multimodal.router, prefix="/v1", tags=["Multimodal"])
 app.include_router(ocr.router, prefix="/v1", tags=["OCR"])
 app.include_router(replay.router, prefix="/v1", tags=["Replay"])
 app.include_router(debugger.router, prefix="/v1", tags=["Debugger"])
+
+# V3 routers
+app.include_router(checkpoints.router, prefix="/v1", tags=["Checkpoints"])
+app.include_router(world_model.router, prefix="/v1", tags=["World Model"])
+app.include_router(predictions.router, prefix="/v1", tags=["Predictions"])
+app.include_router(strategy.router, prefix="/v1", tags=["Strategy"])
+app.include_router(causal_advanced.router, prefix="/v1", tags=["Causal"])
+app.include_router(sharing.router, prefix="/v1", tags=["Sharing"])
+app.include_router(sync.router, prefix="/v1", tags=["Sync"])
+app.include_router(simulation.router, prefix="/v1", tags=["Simulation"])
+app.include_router(compression.router, prefix="/v1", tags=["Compression"])
 
 @app.get("/", tags=["Health"])
 async def root():
