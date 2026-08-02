@@ -1,61 +1,83 @@
-from pydantic import BaseModel, Field, field_validator
-from typing import List, Optional, Dict, Any
+"""
+Memory CRUD API for NFM-X
+Handles memory creation, retrieval, update, and deletion
+"""
+from typing import Optional, Dict, Any, List
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy import select, func
-from sqlalchemy.orm import selectinload
 import uuid
 import hashlib
-import logging
 
-logger = logging.getLogger(__name__)
+from fastapi import APIRouter, Depends, HTTPException, status, Query
+from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, and_, or_, func
 
-from backend.app.storage.database import get_db_session
-from backend.app.memory.models import Memory, MemoryVersion, MemoryEvent, MemoryType, MemoryStatus, ChangeType
-from backend.app.memory.capture import get_capture_engine
-from backend.app.config import settings
+from ..storage.database import get_db_session
+from ..memory.models import Memory, MemoryVersion, MemoryEvent, MemoryType, MemoryStatus, EventType, ChangeType
+from ..memory.capture import capture_handler
+
 
 class MemoryCreateRequest(BaseModel):
-    type: str = Field(..., description="Memory type: episodic, semantic, preference, etc.")
+    content: str = Field(..., min_length=1, max_length=100000)
+    memory_type: Optional[MemoryType] = None
+    source: Optional[str] = None
+    source_type: Optional[str] = None
+    author_id: Optional[str] = None
+    confidence: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    importance: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    metadata: Optional[Dict[str, Any]] = None
+    tags: Optional[List[str]] = None
+    parent_memory_id: Optional[str] = None
+
+
+class MemoryUpdateRequest(BaseModel):
     content: str = Field(..., min_length=1)
-    subtype: Optional[str] = None
-    agent_id: Optional[str] = None
-    source_id: Optional[str] = None
-    confidence: Optional[float] = Field(None, ge=0.0, le=1.0)
-    importance: Optional[float] = Field(None, ge=0.0, le=1.0)
+    change_type: ChangeType = Field(...)
+    change_reason: str = Field(..., min_length=1)
+    confidence: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    importance: Optional[float] = Field(default=None, ge=0.0, le=1.0)
     metadata: Optional[Dict[str, Any]] = None
 
-    @field_validator('type')
-    @classmethod
-    def validate_type(cls, v):
-        valid = {"working","episodic","semantic","procedural","preference",
-                 "decision","failure","success","temporal","causal",
-                 "hypothesis","conflict","multimodal"}
-        if v not in valid:
-            raise ValueError(f"Invalid memory type: {v}. Must be one of {valid}")
-        return v
+
+class MemoryStatusUpdateRequest(BaseModel):
+    status: MemoryStatus = Field(...)
+    reason: Optional[str] = None
+
+
+class MemoryVersionResponse(BaseModel):
+    id: str
+    memory_id: str
+    version_number: int
+    content: str
+    change_type: ChangeType
+    change_reason: Optional[str]
+    confidence: float
+    importance: float
+    status: MemoryStatus
+    actor_id: Optional[str]
+    actor_type: Optional[str]
+    created_at: datetime
+
 
 class MemoryResponse(BaseModel):
     id: str
-    root_id: str
-    version: int
-    type: str
     content: str
-    normalized_content: Optional[str] = None
-    agent_id: Optional[str] = None
-    source_id: Optional[str] = None
+    content_hash: str
+    memory_type: MemoryType
     confidence: float
     importance: float
-    status: str
-    created_at: str
-    observed_at: Optional[str] = None
-    valid_from: Optional[str] = None
-    valid_until: Optional[str] = None
-    parent_id: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
+    status: MemoryStatus
+    source: Optional[str]
+    source_type: Optional[str]
+    author_id: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+    metadata: Dict[str, Any]
+    tags: List[str]
+    current_version: Optional[MemoryVersionResponse] = None
+    version_count: int = 0
+    event_count: int = 0
 
-    class Config:
-        from_attributes = True
 
 class MemoryListResponse(BaseModel):
     memories: List[MemoryResponse]
@@ -63,216 +85,172 @@ class MemoryListResponse(BaseModel):
     limit: int
     offset: int
 
-class LearnRequest(BaseModel):
-    agent_id: str
-    user_input: str
-    ai_output: str
-    metadata: Optional[Dict[str, Any]] = None
 
-router = APIRouter()
+router = APIRouter(prefix="/memory", tags=["Memory"])
 
-def _sha256(content: str) -> str:
-    return hashlib.sha256(content.encode('utf-8')).hexdigest()
 
 def _memory_to_response(memory: Memory) -> MemoryResponse:
+    current_version = None
+    for version in memory.versions:
+        if version.status == MemoryStatus.ACTIVE:
+            current_version = MemoryVersionResponse(
+                id=version.id, memory_id=version.memory_id, version_number=version.version_number,
+                content=version.content, change_type=version.change_type, change_reason=version.change_reason,
+                confidence=version.confidence, importance=version.importance, status=version.status,
+                actor_id=version.actor_id, actor_type=version.actor_type, created_at=version.created_at
+            )
+            break
     return MemoryResponse(
-        id=memory.id,
-        root_id=memory.root_id,
-        version=memory.version,
-        type=memory.type.value,
-        content=memory.content,
-        normalized_content=memory.normalized_content,
-        agent_id=memory.agent_id,
-        source_id=memory.source_id,
-        confidence=memory.confidence,
-        importance=memory.importance,
-        status=memory.status.value,
-        created_at=memory.created_at.isoformat() if memory.created_at else None,
-        observed_at=memory.observed_at.isoformat() if memory.observed_at else None,
-        valid_from=memory.valid_from.isoformat() if memory.valid_from else None,
-        valid_until=memory.valid_until.isoformat() if memory.valid_until else None,
-        parent_id=memory.parent_id,
-        metadata=memory.metadata or {}
+        id=memory.id, content=memory.content, content_hash=memory.content_hash, memory_type=memory.memory_type,
+        confidence=memory.confidence, importance=memory.importance, status=memory.status, source=memory.source,
+        source_type=memory.source_type, author_id=memory.author_id, created_at=memory.created_at,
+        updated_at=memory.updated_at, metadata=memory.metadata or {}, tags=memory.tags or [],
+        current_version=current_version, version_count=len(memory.versions), event_count=len(memory.events)
     )
 
-@router.post("/", response_model=MemoryResponse, status_code=status.HTTP_201_CREATED)
-async def create_memory(request: MemoryCreateRequest, db_session=Depends(get_db_session)):
-    memory_id = str(uuid.uuid4())
-    content_hash = _sha256(request.content)
-    now = datetime.now(timezone.utc)
 
-    memory = Memory(
-        id=memory_id,
-        root_id=memory_id,
-        version=1,
-        type=MemoryType(request.type),
-        subtype=request.subtype,
-        content=request.content,
-        normalized_content=request.content.lower().strip(),
-        content_hash=content_hash,
-        agent_id=request.agent_id,
-        source_id=request.source_id,
-        confidence=request.confidence or settings.NFM_DEFAULT_CONFIDENCE,
-        importance=request.importance or 0.5,
-        status=MemoryStatus.ACTIVE,
-        created_at=now,
-        observed_at=now,
-        valid_from=now,
-        metadata=request.metadata or {}
+@router.post("/", response_model=MemoryResponse, status_code=201)
+async def create_memory(request: MemoryCreateRequest, db_session: AsyncSession = Depends(get_db_session)) -> MemoryResponse:
+    memory = await capture_handler.capture(
+        db_session=db_session, content=request.content, memory_type=request.memory_type, source=request.source,
+        source_type=request.source_type, author_id=request.author_id, confidence=request.confidence,
+        importance=request.importance, metadata=request.metadata, tags=request.tags, parent_memory_id=request.parent_memory_id
     )
-
-    version = MemoryVersion(
-        id=str(uuid.uuid4()),
-        memory_id=memory_id,
-        version=1,
-        content=request.content,
-        normalized_content=memory.normalized_content,
-        content_hash=content_hash,
-        confidence=memory.confidence,
-        importance=memory.importance,
-        status=MemoryStatus.ACTIVE,
-        change_type=ChangeType.CREATE,
-        change_reason="Initial creation",
-        created_at=now,
-        actor_id=request.agent_id or "system",
-        actor_type="agent"
-    )
-
-    event = MemoryEvent(
-        id=str(uuid.uuid4()),
-        memory_id=memory_id,
-        event_type="create",
-        details={"type": request.type, "content_length": len(request.content)},
-        timestamp=now,
-        agent_id=request.agent_id or "system"
-    )
-
-    db_session.add(memory)
-    db_session.add(version)
-    db_session.add(event)
     await db_session.commit()
-
-    # Sync with vector store
-    try:
-        from backend.app.embeddings.models import get_embedding_model
-        from backend.app.embeddings.vector_store import get_vector_store
-        embedding = get_embedding_model().embed(request.content)
-        get_vector_store().add(memory_id, request.content, embedding, {
-            "type": request.type, "agent_id": request.agent_id
-        })
-        get_vector_store().save()
-    except Exception as e:
-        logger.warning(f"Failed to index vector for memory {memory_id}: {e}")
-
+    await db_session.refresh(memory)
     return _memory_to_response(memory)
+
 
 @router.get("/{memory_id}", response_model=MemoryResponse)
-async def get_memory(memory_id: str, db_session=Depends(get_db_session)):
+async def get_memory(memory_id: str, db_session: AsyncSession = Depends(get_db_session)) -> MemoryResponse:
     result = await db_session.execute(select(Memory).where(Memory.id == memory_id))
     memory = result.scalar_one_or_none()
-    if memory is None:
-        raise HTTPException(status_code=404, detail="Memory not found")
+    if not memory:
+        raise HTTPException(status_code=404, detail=f"Memory {memory_id} not found")
     return _memory_to_response(memory)
+
 
 @router.get("/", response_model=MemoryListResponse)
 async def list_memories(
-    agent_id: Optional[str] = None,
-    memory_type: Optional[str] = None,
-    limit: int = Query(50, ge=1, le=200),
-    offset: int = Query(0, ge=0),
-    db_session=Depends(get_db_session)
-):
-    stmt = select(Memory)
+    limit: int = Query(default=50, ge=1, le=1000), offset: int = Query(default=0, ge=0),
+    memory_type: Optional[MemoryType] = Query(default=None), status: Optional[MemoryStatus] = Query(default=None),
+    author_id: Optional[str] = Query(default=None), tag: Optional[str] = Query(default=None),
+    search: Optional[str] = Query(default=None), db_session: AsyncSession = Depends(get_db_session)
+) -> MemoryListResponse:
     conditions = []
-    if agent_id:
-        conditions.append(Memory.agent_id == agent_id)
+    if status:
+        conditions.append(Memory.status == status)
+    else:
+        conditions.append(Memory.status == MemoryStatus.ACTIVE)
     if memory_type:
-        try:
-            conditions.append(Memory.type == MemoryType(memory_type))
-        except ValueError:
-            raise HTTPException(status_code=400, detail=f"Invalid memory type: {memory_type}")
-    if conditions:
-        stmt = stmt.where(*conditions)
-
-    count_stmt = select(func.count()).select_from(stmt.subquery())
+        conditions.append(Memory.memory_type == memory_type)
+    if author_id:
+        conditions.append(Memory.author_id == author_id)
+    if tag:
+        conditions.append(Memory.tags.contains([tag]))
+    if search:
+        terms = search.lower().split()
+        search_conds = [Memory.content.ilike(f"%{t}%") for t in terms if len(t) > 2]
+        if search_conds:
+            conditions.append(or_(*search_conds))
+    count_stmt = select(func.count(Memory.id)).where(and_(*conditions))
     count_result = await db_session.execute(count_stmt)
-    total = count_result.scalar() or 0
-
-    stmt = stmt.order_by(Memory.created_at.desc()).limit(limit).offset(offset)
+    total = count_result.scalar()
+    stmt = select(Memory).where(and_(*conditions)).order_by(Memory.created_at.desc()).limit(limit).offset(offset)
     result = await db_session.execute(stmt)
-    memories = result.scalars().all()
+    return MemoryListResponse(memories=[_memory_to_response(m) for m in result.scalars().all()], total=total, limit=limit, offset=offset)
 
-    return MemoryListResponse(
-        memories=[_memory_to_response(m) for m in memories],
-        total=total,
-        limit=limit,
-        offset=offset
-    )
 
 @router.get("/{memory_id}/history")
-async def get_memory_history(memory_id: str, db_session=Depends(get_db_session)):
-    stmt = select(MemoryVersion).where(MemoryVersion.memory_id == memory_id).order_by(MemoryVersion.version)
-    result = await db_session.execute(stmt)
-    versions = result.scalars().all()
-    if not versions:
-        raise HTTPException(status_code=404, detail="Memory not found")
-    return {
-        "memory_id": memory_id,
-        "versions": [{
-            "version": v.version,
-            "content": v.content,
-            "confidence": v.confidence,
-            "importance": v.importance,
-            "status": v.status.value,
-            "change_type": v.change_type.value,
-            "change_reason": v.change_reason,
-            "created_at": v.created_at.isoformat() if v.created_at else None,
-            "actor_id": v.actor_id,
-            "actor_type": v.actor_type
-        } for v in versions]
-    }
+async def get_memory_history(memory_id: str, db_session: AsyncSession = Depends(get_db_session)) -> Dict[str, Any]:
+    result = await db_session.execute(select(Memory).where(Memory.id == memory_id))
+    memory = result.scalar_one_or_none()
+    if not memory:
+        raise HTTPException(status_code=404)
+    versions = [{
+        "id": v.id, "version_number": v.version_number, "content": v.content, "change_type": v.change_type.value,
+        "change_reason": v.change_reason, "confidence": v.confidence, "importance": v.importance,
+        "status": v.status.value, "created_at": v.created_at.isoformat()
+    } for v in memory.versions]
+    events = [{
+        "id": e.id, "event_type": e.event_type.value, "description": e.description, "actor_id": e.actor_id,
+        "actor_type": e.actor_type, "metadata": e.metadata, "created_at": e.created_at.isoformat()
+    } for e in memory.events]
+    return {"memory_id": memory_id, "versions": versions, "events": events, "total_versions": len(versions), "total_events": len(events)}
 
-@router.post("/learn")
-async def learn_interaction(request: LearnRequest, db_session=Depends(get_db_session), capture_engine=Depends(get_capture_engine)):
-    # Simple rule-based logic to capture from interaction
-    user_mem = await capture_engine.capture(
-        db_session=db_session,
-        content=request.user_input,
-        agent_id=request.agent_id,
-        metadata=request.metadata
+
+@router.put("/{memory_id}", response_model=MemoryResponse)
+async def update_memory(memory_id: str, request: MemoryUpdateRequest, db_session: AsyncSession = Depends(get_db_session)) -> MemoryResponse:
+    result = await db_session.execute(select(Memory).where(Memory.id == memory_id))
+    memory = result.scalar_one_or_none()
+    if not memory:
+        raise HTTPException(status_code=404)
+    current_version = next((v for v in memory.versions if v.status == MemoryStatus.ACTIVE), None)
+    if not current_version:
+        raise HTTPException(status_code=400, detail="No active version")
+    now = datetime.now(timezone.utc)
+    new_version = MemoryVersion(
+        id=str(uuid.uuid4()), memory_id=memory_id, content=request.content,
+        content_hash=hashlib.sha256(request.content.encode("utf-8")).hexdigest(),
+        version_number=current_version.version_number + 1, change_type=request.change_type,
+        change_reason=request.change_reason, confidence=request.confidence or memory.confidence,
+        importance=request.importance or memory.importance, status=MemoryStatus.ACTIVE,
+        actor_id="user", actor_type="user", parent_version_id=current_version.id, created_at=now
     )
-    ai_mem = await capture_engine.capture(
-        db_session=db_session,
-        content=request.ai_output,
-        agent_id=request.agent_id,
-        metadata=request.metadata
+    db_session.add(new_version)
+    current_version.status = MemoryStatus.ARCHIVED
+    memory.content = request.content
+    memory.content_hash = new_version.content_hash
+    memory.confidence = new_version.confidence
+    memory.importance = new_version.importance
+    memory.updated_at = now
+    if request.metadata:
+        memory.metadata = {**memory.metadata, **request.metadata}
+    event = MemoryEvent(
+        id=str(uuid.uuid4()), memory_id=memory_id, version_id=new_version.id,
+        event_type=EventType.VERSIONED, description=f"Updated: {request.change_reason}",
+        actor_id="user", actor_type="user", metadata={}, created_at=now
     )
+    db_session.add(event)
     await db_session.commit()
+    await db_session.refresh(memory)
+    return _memory_to_response(memory)
 
-    # Sync with vector store
-    try:
-        from backend.app.embeddings.models import get_embedding_model
-        from backend.app.embeddings.vector_store import get_vector_store
-        embedder = get_embedding_model()
-        store = get_vector_store()
 
-        # User memory
-        user_emb = embedder.embed(user_mem.content)
-        store.add(user_mem.id, user_mem.content, user_emb, {
-            "type": user_mem.type.value, "agent_id": user_mem.agent_id
-        })
+@router.patch("/{memory_id}/status", response_model=MemoryResponse)
+async def update_memory_status(memory_id: str, request: MemoryStatusUpdateRequest, db_session: AsyncSession = Depends(get_db_session)) -> MemoryResponse:
+    result = await db_session.execute(select(Memory).where(Memory.id == memory_id))
+    memory = result.scalar_one_or_none()
+    if not memory:
+        raise HTTPException(status_code=404)
+    old_status = memory.status
+    memory.status = request.status
+    memory.updated_at = datetime.now(timezone.utc)
+    event = MemoryEvent(
+        id=str(uuid.uuid4()), memory_id=memory_id,
+        event_type=EventType.DELETED if request.status == MemoryStatus.DELETED else EventType.ARCHIVED,
+        description=f"Status: {old_status.value} -> {request.status.value}", actor_id="user", actor_type="user",
+        metadata={}, created_at=memory.updated_at
+    )
+    db_session.add(event)
+    await db_session.commit()
+    await db_session.refresh(memory)
+    return _memory_to_response(memory)
 
-        # AI memory
-        ai_emb = embedder.embed(ai_mem.content)
-        store.add(ai_mem.id, ai_mem.content, ai_emb, {
-            "type": ai_mem.type.value, "agent_id": ai_mem.agent_id
-        })
 
-        store.save()
-    except Exception as e:
-        logger.warning(f"Failed to index vectors for learned interaction: {e}")
-
-    return {
-        "message": "Learned from interaction",
-        "memory_ids": [user_mem.id, ai_mem.id]
-    }
+@router.delete("/{memory_id}", status_code=204)
+async def delete_memory(memory_id: str, db_session: AsyncSession = Depends(get_db_session)) -> None:
+    result = await db_session.execute(select(Memory).where(Memory.id == memory_id))
+    memory = result.scalar_one_or_none()
+    if not memory:
+        raise HTTPException(status_code=404)
+    if memory.status == MemoryStatus.DELETED:
+        raise HTTPException(status_code=400, detail="Already deleted")
+    memory.status = MemoryStatus.DELETED
+    memory.updated_at = datetime.now(timezone.utc)
+    event = MemoryEvent(
+        id=str(uuid.uuid4()), memory_id=memory_id, event_type=EventType.DELETED,
+        description="Soft-deleted", actor_id="user", actor_type="user", metadata={}, created_at=memory.updated_at
+    )
+    db_session.add(event)
+    await db_session.commit()
