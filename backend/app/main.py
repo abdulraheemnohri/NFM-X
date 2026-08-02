@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 
 from .config import settings
 from .storage.database import init_database
-from .api import memory, search, context
+from .api import memory, search, context, conflicts, graph, stats, evolution, multimodal, ocr, replay, debugger
 
 logging.basicConfig(
     level=settings.NFM_LOG_LEVEL,
@@ -18,12 +18,25 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Starting NFM-X...")
+    logger.info("Starting NFM-X V2...")
     settings.NFM_STORAGE_PATH.mkdir(parents=True, exist_ok=True)
     await init_database(str(settings.NFM_DB_PATH))
-    logger.info("NFM-X ready")
+
+    # Start background scheduler
+    from .workers.scheduler import start_scheduler, get_scheduler
+    from .workers.jobs import run_consolidation_job
+    from apscheduler.triggers.interval import IntervalTrigger
+
+    start_scheduler()
+    scheduler = get_scheduler()
+    scheduler.add_job(run_consolidation_job, IntervalTrigger(hours=1), id="consolidation", replace_existing=True)
+
+    logger.info("NFM-X V2 ready")
     yield
-    logger.info("Shutting down NFM-X...")
+
+    from .workers.scheduler import stop_scheduler
+    stop_scheduler()
+    logger.info("Shutting down NFM-X V2...")
 
 app = FastAPI(
     title="NFM-X API",
@@ -43,6 +56,14 @@ app.add_middleware(
 app.include_router(memory.router, prefix="/v1/memory", tags=["Memory"])
 app.include_router(search.router, prefix="/v1/memory", tags=["Search"])
 app.include_router(context.router, prefix="/v1/memory", tags=["Context"])
+app.include_router(conflicts.router, prefix="/v1", tags=["Conflicts"])
+app.include_router(graph.router, prefix="/v1", tags=["Graph"])
+app.include_router(stats.router, prefix="/v1", tags=["Stats"])
+app.include_router(evolution.router, prefix="/v1", tags=["Evolution"])
+app.include_router(multimodal.router, prefix="/v1", tags=["Multimodal"])
+app.include_router(ocr.router, prefix="/v1", tags=["OCR"])
+app.include_router(replay.router, prefix="/v1", tags=["Replay"])
+app.include_router(debugger.router, prefix="/v1", tags=["Debugger"])
 
 @app.get("/", tags=["Health"])
 async def root():
