@@ -1,6 +1,4 @@
 """
-Retrieval module
+NFM-X Retrieval Module
 """
-from .engine import HybridRetrievalEngine
-
-__all__ = ["HybridRetrievalEngine"]
+from .engine import RetrievalEngine

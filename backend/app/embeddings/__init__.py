@@ -1,7 +1,5 @@
 """
-Embeddings module
+NFM-X Embeddings Module
 """
-from .models import EmbeddingModel
-from .vector_store import FAISSVectorStore
-
-__all__ = ["EmbeddingModel", "FAISSVectorStore"]
+from .models import embedding_model
+from .vector_store import vector_store
