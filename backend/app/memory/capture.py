@@ -1,95 +1,51 @@
-from sqlalchemy.ext.asyncio import AsyncSession
+"""
+Memory capture logic for NFM-X
+"""
+from typing import Optional, Dict, Any, List
 from datetime import datetime, timezone
-import uuid
 import hashlib
+import uuid
+from sqlalchemy.ext.asyncio import AsyncSession
+from .models import Memory, MemoryVersion, MemoryEvent, MemoryType, MemoryStatus, EventType, ChangeType, MemoryRelationship, RelationshipType
+from .classification import classifier
+from ..config import settings
 
-from backend.app.memory.models import Memory, MemoryVersion, MemoryEvent, MemoryType, MemoryStatus, ChangeType
-from backend.app.memory.classification import MemoryClassifier
-from backend.app.config import settings
+class MemoryCapture:
+    def _generate_id(self):
+        return str(uuid.uuid4())
 
-class MemoryCaptureEngine:
-    def __init__(self):
-        self.classifier = MemoryClassifier()
-
-    def _sha256(self, content: str) -> str:
+    def _compute_hash(self, content):
         return hashlib.sha256(content.encode('utf-8')).hexdigest()
 
-    async def capture(
-        self,
-        db_session: AsyncSession,
-        content: str,
-        memory_type: str = None,
-        subtype: str = None,
-        agent_id: str = None,
-        source_id: str = None,
-        confidence: float = None,
-        importance: float = None,
-        metadata: dict = None
-    ) -> Memory:
-        # 1. Classification
-        classification = self.classifier.classify(content)
-        final_type = memory_type or classification["type"]
-        final_confidence = confidence or classification["confidence"]
-        final_importance = importance or classification["importance"]
+    def _get_classification(self, content, memory_type=None):
+        if memory_type:
+            return memory_type, 1.0, "Explicit"
+        result = classifier.classify(content)
+        return result.memory_type, result.confidence, result.reason
 
-        memory_id = str(uuid.uuid4())
-        content_hash = self._sha256(content)
+    async def capture(self, db_session, content, memory_type=None, source=None, source_type=None, author_id=None, confidence=None, importance=None, metadata=None, tags=None, parent_memory_id=None):
+        if not content or not content.strip():
+            raise ValueError("Content cannot be empty")
+        clean_content = content.strip()
+        content_hash = self._compute_hash(clean_content)
+        mem_type, _, _ = self._get_classification(clean_content, memory_type)
+        final_confidence = confidence if confidence is not None else settings.default_confidence
+        final_importance = importance if importance is not None else settings.default_importance
+        final_confidence = max(0.0, min(1.0, final_confidence))
+        final_importance = max(0.0, min(1.0, final_importance))
         now = datetime.now(timezone.utc)
-
-        # 2. Create models
-        memory = Memory(
-            id=memory_id,
-            root_id=memory_id,
-            version=1,
-            type=MemoryType(final_type),
-            subtype=subtype,
-            content=content,
-            normalized_content=content.lower().strip(),
-            content_hash=content_hash,
-            agent_id=agent_id,
-            source_id=source_id,
-            confidence=final_confidence,
-            importance=final_importance,
-            status=MemoryStatus.ACTIVE,
-            created_at=now,
-            observed_at=now,
-            valid_from=now,
-            metadata=metadata or {}
-        )
-
-        version = MemoryVersion(
-            id=str(uuid.uuid4()),
-            memory_id=memory_id,
-            version=1,
-            content=content,
-            normalized_content=memory.normalized_content,
-            content_hash=content_hash,
-            confidence=final_confidence,
-            importance=final_importance,
-            status=MemoryStatus.ACTIVE,
-            change_type=ChangeType.CREATE,
-            change_reason="Initial capture",
-            metadata=metadata or {},
-            created_at=now,
-            actor_id=agent_id or "system",
-            actor_type="agent"
-        )
-
-        event = MemoryEvent(
-            id=str(uuid.uuid4()),
-            memory_id=memory_id,
-            event_type="create",
-            details={"type": final_type, "content_length": len(content)},
-            timestamp=now,
-            agent_id=agent_id or "system"
-        )
-
+        memory_id = self._generate_id()
+        memory = Memory(id=memory_id, content=clean_content, content_hash=content_hash, memory_type=mem_type, confidence=final_confidence, importance=final_importance, status=MemoryStatus.ACTIVE, source=source, source_type=source_type, author_id=author_id, created_at=now, updated_at=now, metadata=metadata or {}, tags=tags or [])
         db_session.add(memory)
+        await db_session.flush()
+        version = MemoryVersion(id=self._generate_id(), memory_id=memory_id, content=clean_content, content_hash=content_hash, version_number=1, change_type=ChangeType.EXPAND, change_reason="Initial capture", confidence=final_confidence, importance=final_importance, status=MemoryStatus.ACTIVE, actor_id=author_id, actor_type=source_type or "user", parent_version_id=None, created_at=now)
         db_session.add(version)
+        await db_session.flush()
+        event = MemoryEvent(id=self._generate_id(), memory_id=memory_id, version_id=version.id, event_type=EventType.CREATED, description=f"Created with type: {mem_type.value}", actor_id=author_id, actor_type=source_type or "user", metadata={"classification": mem_type.value}, created_at=now)
         db_session.add(event)
-
+        if parent_memory_id:
+            relationship = MemoryRelationship(id=self._generate_id(), source_id=parent_memory_id, target_id=memory_id, relationship_type=RelationshipType.EXTENDS, confidence=0.8, description="Derived", metadata={}, created_at=now)
+            db_session.add(relationship)
         return memory
 
-# Singleton or factory
-def get_capture_engine() -> MemoryCaptureEngine:
-    return MemoryCaptureEngine()
+capture_handler = MemoryCapture()

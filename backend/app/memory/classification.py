@@ -1,62 +1,52 @@
-from typing import Dict, Any, Optional
+"""
+Rule-based memory classification for NFM-X
+"""
+from typing import Optional
+from dataclasses import dataclass
+from enum import Enum
 import re
+from .models import MemoryType
+
+@dataclass
+class ClassificationResult:
+    memory_type: MemoryType
+    confidence: float
+    reason: str
 
 class MemoryClassifier:
+    TYPE_PATTERNS = {
+        MemoryType.FACT: {"keywords": ["is", "are", "fact", "true"], "patterns": [r'\b(is|are|was)\b'], "weight": 1.0},
+        MemoryType.CONCEPT: {"keywords": ["concept", "idea", "theory"], "patterns": [r'\b(concept|idea)\b'], "weight": 1.2},
+        MemoryType.PROCEDURE: {"keywords": ["step", "how to", "first", "then"], "patterns": [r'\b(step|how to)\b'], "weight": 1.3},
+        MemoryType.EXPERIENCE: {"keywords": ["I", "experience", "happened"], "patterns": [r'\b(I|me)\b'], "weight": 1.1},
+        MemoryType.CAUSAL: {"keywords": ["because", "causes", "leads to"], "patterns": [r'\b(because|causes)\b'], "weight": 1.4},
+        MemoryType.DECISION: {"keywords": ["decide", "decision", "choose"], "patterns": [r'\b(decide|decision)\b'], "weight": 1.2},
+        MemoryType.OBSERVATION: {"keywords": ["observe", "notice"], "patterns": [r'\b(observe|notice)\b'], "weight": 1.1},
+        MemoryType.HYPOTHESIS: {"keywords": ["hypothesis", "maybe"], "patterns": [r'\b(hypothesis|maybe)\b'], "weight": 1.0},
+        MemoryType.GOAL: {"keywords": ["goal", "want", "achieve"], "patterns": [r'\b(goal|objective)\b'], "weight": 1.2},
+        MemoryType.PLAN: {"keywords": ["plan", "strategy", "will"], "patterns": [r'\b(plan|strategy)\b'], "weight": 1.3},
+    }
+
     def __init__(self):
-        self.type_patterns = {
-            "episodic": [r"user\s+(requested|asked|said|told|says)", r"ai\s+(responded|replied|said|generated)", r"conversation", r"interaction", r"yesterday", r"today", r"meeting"],
-            "semantic": [r"is\s+a\s+\w+", r"\w+\s+is\s+\w+", r"definition", r"fact", r"knowledge", r"capital\s+of", r"founded\s+in"],
-            "procedural": [r"step\s+\d+", r"how\s+to\s+", r"procedure", r"algorithm", r"process", r"first,", r"second,", r"then\s+run"],
-            "preference": [r"prefer\s+\w+", r"like\s+\w+", r"favorite", r"preference", r"hates", r"likes"],
-            "decision": [r"decided\s+to\s+", r"chose\s+\w+", r"decision", r"choice", r"selected"],
-            "failure": [r"failed\s+to\s+", r"error", r"exception", r"problem", r"issue", r"crash", r"bug"],
-            "success": [r"success", r"completed", r"finished", r"achieved", r"worked", r"resolved", r"passed"]
-        }
-        self.importance_keywords = {
-            "critical": 1.0,
-            "essential": 1.0,
-            "important": 0.9,
-            "key": 0.9,
-            "major": 0.8,
-            "urgent": 0.9,
-            "trivial": 0.1,
-            "minor": 0.3
-        }
+        self._compiled = {t: [re.compile(p, re.IGNORECASE) for p in c["patterns"]] for t, c in self.TYPE_PATTERNS.items()}
 
-    def classify(self, content: str) -> Dict[str, Any]:
-        content_lower = content.lower().strip()
-        detected_type = self._detect_type(content_lower) or "episodic"
-        importance = self._calculate_importance(content_lower)
-        confidence = self._calculate_confidence(detected_type)
+    def classify(self, content: str, default_type: MemoryType = MemoryType.FACT) -> ClassificationResult:
+        if not content or not content.strip():
+            return ClassificationResult(memory_type=default_type, confidence=0.5, reason="Empty")
+        clean = content.strip().lower()
+        scores = {}
+        for mem_type, config in self.TYPE_PATTERNS.items():
+            score = sum(len(p.findall(clean)) * config["weight"] * 0.5 for p in self._compiled[mem_type])
+            score += sum(0.1 * config["weight"] for k in config["keywords"] if k.lower() in clean)
+            if len(clean) > 0:
+                score = score / (len(clean.split()) ** 0.5)
+            scores[mem_type] = score
+        if scores:
+            best = max(scores.items(), key=lambda x: x[1])
+            total = sum(scores.values())
+            confidence = best[1] / total if total > 0 else 0.5
+            confidence = max(0.3, min(0.95, confidence))
+            return ClassificationResult(memory_type=best[0], confidence=round(confidence, 2), reason="Pattern match")
+        return ClassificationResult(memory_type=default_type, confidence=0.5, reason="No match")
 
-        return {
-            "type": detected_type,
-            "confidence": confidence,
-            "importance": importance
-        }
-
-    def _detect_type(self, content: str) -> Optional[str]:
-        for mem_type, patterns in self.type_patterns.items():
-            for pattern in patterns:
-                if re.search(pattern, content):
-                    return mem_type
-        return None
-
-    def _calculate_importance(self, content: str) -> float:
-        score = 0.5
-        for keyword, val in self.importance_keywords.items():
-            if keyword in content:
-                score = max(score, val)
-        return score
-
-    def _calculate_confidence(self, mem_type: str) -> float:
-        return {
-            "working": 0.7,
-            "episodic": 0.7,
-            "semantic": 0.8,
-            "procedural": 0.8,
-            "preference": 0.7,
-            "decision": 0.7,
-            "failure": 0.9,
-            "success": 0.8
-        }.get(mem_type, 0.7)
+classifier = MemoryClassifier()
