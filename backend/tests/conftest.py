@@ -1,27 +1,28 @@
+"""
+Pytest configuration
+"""
 import pytest
-import pytest_asyncio
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
-from backend.app.memory.models import Base
+import tempfile
+from pathlib import Path
+from app.config import Settings
+from app.storage.database import Base
 
-TEST_DB_URL = "sqlite+aiosqlite:///:memory:"
+@pytest.fixture(scope="session")
+def test_settings():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        settings = Settings(database_url=f"sqlite+aiosqlite:///{Path(tmpdir) / 'test.db'}", faiss_index_path=str(Path(tmpdir) / "test_faiss"))
+        yield settings
 
-@pytest.fixture(autouse=True)
-def clean_vector_store(tmp_path):
-    import backend.app.embeddings.vector_store as vs_module
-    old_store = vs_module._vector_store
-    vs_module._vector_store = vs_module.FAISSVectorStore(dimension=384, index_path=str(tmp_path / "vectors"))
-    yield vs_module._vector_store
-    vs_module._vector_store = old_store
-
-@pytest_asyncio.fixture
-async def db_session():
-    engine = create_async_engine(TEST_DB_URL, echo=False)
+@pytest.fixture(scope="session", autouse=True)
+async def test_db_engine(test_settings):
+    import app.config
+    app.config.settings = test_settings
+    from sqlalchemy.ext.asyncio import create_async_engine
+    from sqlalchemy import text
+    engine = create_async_engine(test_settings.database_url, echo=True)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-
-    async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    async with async_session() as session:
-        yield session
-        await session.rollback()
-
+        if engine.dialect.name == "sqlite":
+            await conn.execute(text("PRAGMA journal_mode=WAL"))
+    yield engine
     await engine.dispose()
