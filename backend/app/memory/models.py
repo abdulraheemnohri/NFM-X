@@ -196,6 +196,17 @@ class MemorySkill(Base):
     confidence = Column(Float, nullable=False, default=0.5)
     created_at = Column(DateTime, nullable=False, default=now_utc)
 
+class MemoryCheckpoint(Base):
+    __tablename__ = "memory_checkpoints"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    checkpoint_type = Column(String(20), nullable=False)
+    merkle_root = Column(String(64), nullable=True)
+    memory_count = Column(Integer, nullable=False)
+    signature = Column(Text, nullable=True)
+    public_key = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=now_utc)
+
 # Assign properties after class declarations to bypass SQLAlchemy reserved word checks
 # while preserving property-like access for .metadata across all code.
 Memory.metadata = property(lambda self: self.meta, lambda self, val: setattr(self, 'meta', val))
