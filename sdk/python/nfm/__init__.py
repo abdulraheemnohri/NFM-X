@@ -2,6 +2,7 @@
 NFM-X Python SDK
 """
 from .client import NFMClient
-from .models import Memory, MemoryVersion, MemoryType, MemoryStatus, ChangeType
+from .models import Memory, MemoryType, MemoryStatus
 
-__all__ = ["NFMClient", "Memory", "MemoryVersion", "MemoryType", "MemoryStatus", "ChangeType"]
+__all__ = ["NFMClient", "Memory", "MemoryType", "MemoryStatus"]
+__version__ = "1.5.0"
