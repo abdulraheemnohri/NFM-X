@@ -86,7 +86,8 @@ export class NFMClient {
    * Create a new memory.
    */
   async createMemory(payload: MemoryCreate): Promise<Memory> {
-    const response = await this.request<Memory>('post', '/api/memories', payload);
+    const response = await this.request<Memory>('post', '/api/memorie
+s', payload);
     return response.data;
   }
 
@@ -94,7 +95,7 @@ export class NFMClient {
    * Get a specific memory by ID.
    */
   async getMemory(memoryId: string): Promise<Memory> {
-    const response = await this.request<Memory>('get', `/api/memories/${memoryId}`);
+    const response = await this.request<Memory>('get', `/api/v1/memories/${memoryId}`);
     return response.data;
   }
 
@@ -113,7 +114,7 @@ export class NFMClient {
 
     const response = await this.request<PaginatedResponse<Memory>>(
       'get',
-      '/api/memories',
+      '/api/v1/memories',
       undefined,
       params
     );
@@ -126,7 +127,7 @@ export class NFMClient {
   async updateMemory(memoryId: string, payload: MemoryUpdate): Promise<Memory> {
     const response = await this.request<Memory>(
       'put',
-      `/api/memories/${memoryId}`,
+      `/api/v1/memories/${memoryId}`,
       payload
     );
     return response.data;
@@ -136,7 +137,7 @@ export class NFMClient {
    * Delete a memory (soft delete).
    */
   async deleteMemory(memoryId: string): Promise<boolean> {
-    await this.request('delete', `/api/memories/${memoryId}`);
+    await this.request('delete', `/api/v1/memories/${memoryId}`);
     return true;
   }
 
@@ -154,7 +155,7 @@ export class NFMClient {
     const params = { q: query, limit, semantic, keyword };
     const response = await this.request<SearchResponse>(
       'get',
-      '/api/search',
+      '/api/v1/search',
       undefined,
       params
     );
@@ -172,8 +173,9 @@ export class NFMClient {
     maxTokens: number = 2000
   ): Promise<Context> {
     const params = { query, limit, max_tokens: maxTokens };
-    const response = await this.request<Context>('get', '/api/context', undefined, params);
-    return response.data;
+    const response = await this.request<Context>('get', '/api/v1/context', undefined, params);
+    return respon
+se.data;
   }
 
   // Statistics Operations
@@ -201,7 +203,7 @@ export class NFMClient {
 
     const response = await this.request<PaginatedResponse<Conflict>>(
       'get',
-      '/api/conflicts',
+      '/api/v1/conflicts',
       undefined,
       params
     );
@@ -212,7 +214,7 @@ export class NFMClient {
    * Detect new conflicts.
    */
   async detectConflicts(): Promise<{ count: number }> {
-    const response = await this.request<{ count: number }>('post', '/api/conflicts/detect');
+    const response = await this.request<{ count: number }>('post', '/api/v1/conflicts/detect');
     return response.data;
   }
 
@@ -222,7 +224,7 @@ export class NFMClient {
   async resolveConflict(conflictId: string): Promise<Conflict> {
     const response = await this.request<Conflict>(
       'post',
-      `/api/conflicts/${conflictId}/resolve`
+      `/api/v1/conflicts/${conflictId}/resolve`
     );
     return response.data;
   }
@@ -233,7 +235,7 @@ export class NFMClient {
    * Get the memory graph.
    */
   async getGraph(): Promise<GraphData> {
-    const response = await this.request<GraphData>('get', '/api/graph');
+    const response = await this.request<GraphData>('get', '/api/v1/graph');
     return response.data;
   }
 
@@ -247,7 +249,7 @@ export class NFMClient {
     weight: number = 1.0
   ): Promise<any> {
     const payload = { source_id: sourceId, target_id: targetId, type, weight };
-    const response = await this.request('post', '/api/graph/relationships', payload);
+    const response = await this.request('post', '/api/v1/graph/relationships', payload);
     return response.data;
   }
 
@@ -255,8 +257,9 @@ export class NFMClient {
    * Delete a relationship between memories.
    */
   async deleteRelationship(sourceId: string, targetId: string): Promise<boolean> {
-    await this.request('delete', `/api/graph/relationships/${sourceId}/${targetId}`);
-    return true;
+    await this.request('delete', `/api/v1/graph/relationships/${sourceId}/${targetId}`);
+  
+  return true;
   }
 
   // Health Check
