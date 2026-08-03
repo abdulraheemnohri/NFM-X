@@ -10,7 +10,7 @@ from datetime import datetime
 
 from backend.app.database import get_db_connection
 
-router = APIRouter(prefix="/api/v1/patterns", tags=["patterns"])
+router = APIRouter(prefix="", tags=["patterns"])
 
 
 class PatternCreate(BaseModel):
@@ -79,7 +79,8 @@ async def list_patterns(
         params.append(enabled)
     if tag:
         conditions.append("tags LIKE ?")
-        params.append(f"%{tag}%")
+        params
+.append(f"%{tag}%")
     
     if conditions:
         query += " WHERE " + " AND ".join(conditions)
@@ -142,7 +143,8 @@ async def create_pattern(pattern: PatternCreate):
     db = await get_db_connection()
     
     async with db.execute(
-        """INSERT INTO search_patterns (name, pattern, description, case_sensitive, enabled, tags)
+        """INSERT INTO search_pat
+terns (name, pattern, description, case_sensitive, enabled, tags)
            VALUES (?, ?, ?, ?, ?, ?)""",
         (
             pattern.name,
@@ -206,7 +208,8 @@ async def update_pattern(pattern_id: int, pattern: PatternUpdate):
         params.append(datetime.utcnow().isoformat())
         params.append(pattern_id)
         
-        query = "UPDATE search_patterns SET " + ", ".join(updates) + " WHERE id = ?"
+        query = "UPDATE search_patterns SET " + ", ".join(upd
+ates) + " WHERE id = ?"
         async with db.execute(query, params):
             pass
         await db.commit()
@@ -271,7 +274,8 @@ async def search_with_pattern(request: PatternSearchRequest):
         matches = list(compiled_pattern.finditer(content))
         if matches:
             for match in matches:
-                results.append(PatternSearchResult(
+                resu
+lts.append(PatternSearchResult(
                     memory_id=memory_id,
                     content=content,
                     matched_text=match.group(0),
