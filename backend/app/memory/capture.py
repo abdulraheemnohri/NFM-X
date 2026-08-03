@@ -55,7 +55,8 @@ class MemoryCapture:
                 return existing_memory
 
             memory = Memory(
-                id=str(uuid.uuid4()),
+ 
+               id=str(uuid.uuid4()),
                 content=content,
                 content_hash=content_hash,
                 title=title or self._extract_title(content),
@@ -102,7 +103,8 @@ class MemoryCapture:
                 from backend.app.embeddings.vector_store import get_vector_store
 
                 emb_model = get_embedding_model()
-                memory.embedding = emb_model.encode_single(content)
+                memory.embedding 
+= emb_model.encode_single(content)
 
                 v_store = get_vector_store()
                 v_store.add(memory.id, content, memory.embedding)
@@ -151,7 +153,8 @@ class MemoryCapture:
         finally:
             # Only close the session if we created it
             if session_owner and db_session is not None:
-                await db_session.close()
+       
+         await db_session.close()
 
     async def update_memory(
         self,
@@ -203,7 +206,8 @@ class MemoryCapture:
                 if description is not None:
                     current_memory.description = description
                 if tags is not None:
-                    current_memory.tags = tags
+           
+         current_memory.tags = tags
                 if categories is not None:
                     current_memory.categories = categories
                 if metadata is not None:
@@ -241,6 +245,8 @@ class MemoryCapture:
         from sqlalchemy import select
         
         session_owner = db_session is None
+        # If no session provided, create a new one that we will manage
+        session_owner = db_session is None
         if db_session is None:
             db_session = AsyncSessionLocal()
         
@@ -257,7 +263,8 @@ class MemoryCapture:
                 await db_session.delete(memory)
                 await db_session.execute(
                     MemoryEvent.__table__.delete().where(MemoryEvent.memory_id == memory_id)
-                )
+         
+       )
             else:
                 memory.status = MemoryStatus.DELETED
                 memory.deleted_at = datetime.now(timezone.utc)
