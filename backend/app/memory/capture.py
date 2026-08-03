@@ -34,6 +34,10 @@ class MemoryCapture:
         parent_id: Optional[str] = None,
         db_session = None
     ) -> Memory:
+        # If no session provided, create a new one that we will manage
+        session_owner = db_session is None
+        # If no session provided, create a new one that we will manage
+        session_owner = db_session is None
         if db_session is None:
             db_session = AsyncSessionLocal()
         
@@ -60,7 +64,8 @@ class MemoryCapture:
             
             if parent_id:
                 from sqlalchemy import select
-                result = await db_session.execute(
+                result = await
+ db_session.execute(
                     select(Memory).where(Memory.id == parent_id)
                 )
                 parent = result.scalar_one_or_none()
@@ -96,7 +101,8 @@ class MemoryCapture:
             logger.error(f"Failed to capture memory: {e}")
             raise
         finally:
-            if db_session is not None:
+            # Only close the session if we created it
+            if session_owner and db_session is not None:
                 await db_session.close()
 
     async def update_memory(
@@ -115,7 +121,8 @@ class MemoryCapture:
         if db_session is None:
             db_session = AsyncSessionLocal()
         
-        try:
+        
+try:
             result = await db_session.execute(
                 select(Memory).where(Memory.id == memory_id)
             )
@@ -159,7 +166,8 @@ class MemoryCapture:
                     memory_id=memory_id,
                     event_type=EventType.UPDATED,
                     details={"fields": {"title": title is not None, "description": description is not None}}
-                )
+  
+              )
                 db_session.add(update_event)
                 
                 await db_session.commit()
@@ -171,7 +179,8 @@ class MemoryCapture:
             logger.error(f"Failed to update memory {memory_id}: {e}")
             raise
         finally:
-            if db_session is not None:
+            # Only close the session if we created it
+            if session_owner and db_session is not None:
                 await db_session.close()
 
     async def delete_memory(
@@ -218,7 +227,8 @@ class MemoryCapture:
             logger.error(f"Failed to delete memory {memory_id}: {e}")
             raise
         finally:
-            if db_session is not None:
+            # Only close the session if we created it
+            if session_owner and db_session is not None:
                 await db_session.close()
 
     def _compute_hash(self, content: str) -> str:
