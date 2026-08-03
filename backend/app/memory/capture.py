@@ -42,10 +42,22 @@ class MemoryCapture:
             db_session = AsyncSessionLocal()
         
         try:
+            content_hash = self._compute_hash(content)
+
+            # Deduplication check
+            from sqlalchemy import select
+            existing_result = await db_session.execute(
+                select(Memory).where(Memory.content_hash == content_hash, Memory.status == MemoryStatus.ACTIVE)
+            )
+            existing_memory = existing_result.scalar_one_or_none()
+            if existing_memory:
+                logger.info(f"Duplicate content detected for hash {content_hash}. Returning existing memory {existing_memory.id}")
+                return existing_memory
+
             memory = Memory(
                 id=str(uuid.uuid4()),
                 content=content,
-                content_hash=self._compute_hash(content),
+                content_hash=content_hash,
                 title=title or self._extract_title(content),
                 description=description,
                 memory_type=memory_type or MemoryType.TEXT,
