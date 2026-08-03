@@ -8,7 +8,7 @@ from datetime import datetime
 
 from backend.app.simulation.comparison import SimulationComparator, SimulationState, MemoryState
 
-router = APIRouter(prefix="/api/v1/simulation", tags=["Simulation"])
+router = APIRouter(prefix="", tags=["Simulation"])
 
 
 class MemoryStateRequest(BaseModel):
@@ -72,7 +72,8 @@ async def create_simulation(request: CreateSimulationRequest):
         name=simulation.name,
         description=simulation.description,
         created_at=simulation.created_at,
-        memory_count=len(simulation.memories),
+        m
+emory_count=len(simulation.memories),
         metadata=simulation.metadata
     )
 
@@ -134,7 +135,8 @@ async def add_simulation_memory(simulation_id: str, state: MemoryStateRequest):
     )
     
     simulation.add_memory_state(memory_state)
-    return {"message": f"Added memory {state.memory_id} to simulation {simulation_id}"}
+    return {"message": f"Added memory {state.memory_id} to simulation {s
+imulation_id}"}
 
 
 @router.get("/{simulation_id}/diff", response_model=SimulationDiffResponse)
@@ -187,7 +189,8 @@ async def compare_simulation(simulation_id: str):
 
 
 @router.post("/{simulation_id}/update-real", status_code=200)
-async def update_real_state(simulation_id: str, state: MemoryStateRequest):
+async def upda
+te_real_state(simulation_id: str, state: MemoryStateRequest):
     """
     Update the real state of a memory (for comparison)
     """
