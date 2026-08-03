@@ -9,7 +9,8 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 from enum import Enum
 
-from backend.app.database import get_db_connection
+
+import jsonfrom backend.app.storage.database import get_db_connection
 from backend.app.models.conflict import Conflict, ConflictResolution
 
 router = APIRouter(prefix="/api/v1/conflicts", tags=["conflicts"])
@@ -42,7 +43,7 @@ class ConflictBase(BaseModel):
     local_metadata: Dict[str, Any] = Field(default_factory=dict)
     remote_metadata: Dict[str, Any] = Field(default_factory=dict)
     conflict_type: ConflictType
-    detected_at: datetime = Field(default_factory=datetime.utcnow)
+    detected_at: datetime = Field(default_factory=datetime.now(timezone.utc))
     status: ConflictStatus = ConflictStatus.PENDING
 
 
@@ -76,7 +77,8 @@ class ConflictListResponse(BaseModel):
     created_at: datetime
 
 
-class AutoResolveRequest(BaseModel):
+class AutoRe
+solveRequest(BaseModel):
     strategy: ResolutionStrategy
     dry_run: bool = False
 
@@ -142,7 +144,8 @@ async def get_conflict(conflict_id: int):
         local_metadata=row[4] or {},
         remote_metadata=row[5] or {},
         conflict_type=ConflictType(row[6]),
-        detected_at=datetime.fromisoformat(row[7]),
+        detected_at=datetime.fr
+omisoformat(row[7]),
         status=ConflictStatus(row[8]),
         resolution=ResolutionStrategy(row[9]) if row[9] else None,
         resolved_at=datetime.fromisoformat(row[10]) if row[10] else None,
@@ -178,8 +181,8 @@ async def create_conflict(conflict: ConflictCreate):
     
     return ConflictResponse(
         id=conflict_id,
-        **conflict.dict(),
-        created_at=datetime.utcnow()
+        **conflict.model_dump(),
+        created_at=datetime.now(timezone.utc))
     )
 
 
@@ -202,8 +205,9 @@ async def resolve_conflict(
     applied_resolution = resolution.resolution or ResolutionStrategy.KEEP_BOTH
     
     if applied_resolution == ResolutionStrategy.MERGE:
-        merged_content = self._merge_contents(row[2], row[3])
-        merged_metadata = self._merge_metadata(row[4] or {}, row[5] or {})
+        merged_content = self._merge_conte
+nts(row[2], row[3])
+        merged_metadata = _merge_metadata(row[4] or {}, row[5] or {})
     elif applied_resolution == ResolutionStrategy.KEEP_LOCAL:
         merged_content = row[2]
         merged_metadata = row[4] or {}
@@ -214,7 +218,7 @@ async def resolve_conflict(
         merged_content = row[2]
         merged_metadata = row[4] or {}
     
-    resolved_at = resolution.resolved_at or datetime.utcnow()
+    resolved_at = resolution.resolved_at or datetime.now(timezone.utc))
     
     async with db.execute(
         """UPDATE conflicts SET status = ?, resolution = ?, resolved_at = ?, 
@@ -264,13 +268,14 @@ async def auto_resolve_conflicts(request: AutoResolveRequest):
     resolved_count = 0
     failed_count = 0
     
-    if not request.dry_run:
+ 
+   if not request.dry_run:
         for conflict_id in conflict_ids:
             try:
                 resolution = ConflictUpdate(
                     status=ConflictStatus.RESOLVED,
                     resolution=request.strategy,
-                    resolved_at=datetime.utcnow(),
+                    resolved_at=datetime.now(timezone.utc)),
                     resolved_by="auto-resolver",
                     notes=f"Auto-resolved with {request.strategy.value} strategy"
                 )
@@ -300,7 +305,7 @@ async def bulk_resolve_conflicts(request: BulkResolveRequest):
                 resolution = ConflictUpdate(
                     status=ConflictStatus.RESOLVED,
                     resolution=request.strategy,
-                    resolved_at=datetime.utcnow(),
+                    resolved_at=datetime.now(timezone.utc)),
                     resolved_by="bulk-resolver",
                     notes=f"Bulk resolved with {request.strategy.value} strategy"
                 )
@@ -320,7 +325,8 @@ async def bulk_resolve_conflicts(request: BulkResolveRequest):
 
 @router.delete("/{conflict_id}", response_model=ConflictResponse)
 async def dismiss_conflict(conflict_id: int):
-    """Dismiss a conflict without resolution."""
+   
+ """Dismiss a conflict without resolution."""
     db = await get_db_connection()
     
     async with db.execute(
@@ -333,7 +339,7 @@ async def dismiss_conflict(conflict_id: int):
     
     async with db.execute(
         "UPDATE conflicts SET status = ?, resolved_at = ? WHERE id = ?",
-        (ConflictStatus.DISMISSED.value, datetime.utcnow().isoformat(), conflict_id)
+        (ConflictStatus.DISMISSED.value, datetime.now(timezone.utc)).isoformat(), conflict_id)
     ):
         pass
     
@@ -349,12 +355,12 @@ async def dismiss_conflict(conflict_id: int):
         conflict_type=ConflictType(row[6]),
         detected_at=datetime.fromisoformat(row[7]),
         status=ConflictStatus.DISMISSED,
-        resolved_at=datetime.utcnow(),
+        resolved_at=datetime.now(timezone.utc)),
         created_at=datetime.fromisoformat(row[13])
     )
 
 
-def _merge_contents(self, local: str, remote: str) -> str:
+def _merge_contents(local: str, remote: str) -> str:
     """Merge two content versions."""
     if local == remote:
         return local
@@ -365,7 +371,7 @@ def _merge_contents(self, local: str, remote: str) -> str:
 {remote}"
 
 
-def _merge_metadata(self, local: Dict, remote: Dict) -> Dict:
+def _merge_metadata(local: Dict, remote: Dict) -> Dict:
     """Merge two metadata dictionaries."""
     merged = local.copy()
     for key, value in remote.items():
@@ -374,4 +380,3 @@ def _merge_metadata(self, local: Dict, remote: Dict) -> Dict:
     return merged
 
 
-import json
