@@ -14,7 +14,7 @@ import hashlib
 from backend.app.database import get_db_connection
 from backend.app.config import NFM_MCP_ENABLED
 
-router = APIRouter(prefix="/api/v1/mcp", tags=["mcp"])
+router = APIRouter(prefix="", tags=["mcp"])
 
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
@@ -78,7 +78,8 @@ class MCPConfig(BaseModel):
     rate_limit_default: int
 
 
-@router.get("/config", response_model=MCPConfig)
+@route
+r.get("/config", response_model=MCPConfig)
 async def get_mcp_config():
     """Get MCP configuration."""
     return MCPConfig(
@@ -142,7 +143,8 @@ async def list_api_keys(
 ):
     """List all API keys (without secrets)."""
     if not NFM_MCP_ENABLED:
-        raise HTTPException(status_code=403, detail="MCP is disabled")
+        raise HTTPException(status_code=403, detail=
+"MCP is disabled")
     
     db = await get_db_connection()
     query = "SELECT * FROM api_keys"
@@ -207,7 +209,8 @@ async def get_api_key(key_id: str):
     )
 
 
-@router.put("/keys/{key_id}", response_model=APIKeyResponse)
+@router.put("/keys/{key_id}
+", response_model=APIKeyResponse)
 async def update_api_key(key_id: str, key_data: APIKeyUpdate):
     """Update an API key."""
     if not NFM_MCP_ENABLED:
@@ -266,7 +269,8 @@ async def update_api_key(key_id: str, key_data: APIKeyUpdate):
         enabled=bool(row[6]),
         created_at=datetime.fromisoformat(row[7]),
         expires_at=datetime.fromisoformat(row[8]) if row[8] else None,
-        last_used_at=datetime.fromisoformat(row[9]) if row[9] else None,
+   
+     last_used_at=datetime.fromisoformat(row[9]) if row[9] else None,
         usage_count=row[10],
         rate_limit=row[11]
     )
@@ -321,7 +325,8 @@ async def authenticate(request: AuthenticateRequest):
                 authenticated=True,
                 key_id=key_id,
                 permissions=permissions.split(",") if permissions else [],
-                expires_at=datetime.fromisoformat(expires_at) if expires_at else None
+                expires_at=datetime.fromi
+soformat(expires_at) if expires_at else None
             )
     
     raise HTTPException(status_code=401, detail="Invalid API key")
@@ -383,7 +388,8 @@ async def verify_api_key(api_key: Optional[str] = Header(None)) -> Optional[Dict
         
         input_hashed = hashlib.sha256(api_key.encode()).hexdigest()
         async with db.execute(
-            "SELECT hashed_secret FROM api_keys WHERE key_id = ?", (key_id,)
+            "SELECT
+ hashed_secret FROM api_keys WHERE key_id = ?", (key_id,)
         ) as cursor2:
             secret_row = await cursor2.fetchone()
         
