@@ -160,9 +160,16 @@ async def list_memories(
     result = await db.execute(query)
     memories = result.scalars().all()
     
+    # Batch update access counts to avoid N+1 commits
     for memory in memories:
         memory.access_count += 1
-    await db.commit()
+    
+    # Single commit for all access count updates
+    if memories:
+        await db.commit()
+        # Refresh all memories to get updated access counts
+        for memory in memories:
+            await db.refresh(memory)
     
     return [MemoryResponse.model_validate(m) for m in memories]
 
@@ -228,7 +235,7 @@ async def restore_memory(memory_id: str, db: AsyncSession = Depends(get_db)) -> 
     memory.status = MemoryStatus.ACTIVE
     memory.archived_at = None
     memory.deleted_at = None
-    memory.updated_at = datetime.now()
+    memory.updated_at = datetime.now(timezone.utc)
     
     restore_event = MemoryEvent(
         memory_id=memory_id,
@@ -263,9 +270,16 @@ async def get_memory_versions(memory_id: str, db: AsyncSession = Depends(get_db)
     result = await db.execute(select(Memory).where(Memory.id.in_(version_ids)).order_by(Memory.version))
     versions = result.scalars().all()
     
+    # Batch update access counts to avoid N+1 commits
     for version in versions:
         version.access_count += 1
-    await db.commit()
+    
+    # Single commit for all access count updates
+    if versions:
+        await db.commit()
+        # Refresh all versions to get updated access counts
+        for version in versions:
+            await db.refresh(version)
     
     return [MemoryResponse.model_validate(v) for v in versions]
 
