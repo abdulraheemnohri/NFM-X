@@ -17,7 +17,7 @@ from backend.app.models.document import UploadedDocument, DocumentStatus, Docume
 from backend.app.config import get_config
 from backend.app.api.documents import documents_db, get_document_type
 
-router = APIRouter(prefix="/api/v1/upload", tags=["Batch Upload"])
+router = APIRouter(prefix="", tags=["Batch Upload"])
 
 
 class BatchUploadRequest(BaseModel):
@@ -74,7 +74,8 @@ async def batch_upload(
     upload_dir = config.upload.upload_dir
     os.makedirs(upload_dir, exist_ok=True)
     
-    for file in files:
+    for fi
+le in files:
         try:
             # Check file size
             content = await file.read()
@@ -129,6 +130,7 @@ async def batch_upload(
         "errors": errors,
         "created_at": datetime.utcnow().isoformat()
     }
+
     
     return BatchUploadResponse(
         job_id=job_id,
@@ -191,7 +193,8 @@ async def batch_upload_zip(
                 max_size = config.upload.max_file_size_mb * 1024 * 1024
                 if file_size > max_size:
                     errors.append(f"{os.path.basename(file_path)}: File too large")
-                    continue
+       
+             continue
                 
                 # Check file extension
                 file_ext = os.path.splitext(file_path)[1].lower()
@@ -238,7 +241,8 @@ async def batch_upload_zip(
         }
         
         return BatchUploadResponse(
-            job_id=job_id,
+            job_id=job_id
+,
             document_ids=document_ids,
             total_files=len(extracted_files),
             status="completed",
@@ -301,7 +305,8 @@ async def batch_upload_tar(
         errors = []
         
         upload_dir = config.upload.upload_dir
-        os.makedirs(upload_dir, exist_ok=True)
+        os.makedirs(upload_dir, 
+exist_ok=True)
         
         for file_path in extracted_files:
             try:
@@ -347,7 +352,8 @@ async def batch_upload_tar(
         
         # Store batch job
         batch_jobs[job_id] = {
-            "job_id": job_id,
+            "job_id": job_
+id,
             "status": "completed",
             "progress": 100.0,
             "processed_files": len(document_ids),
@@ -408,7 +414,8 @@ async def get_batch_job_documents(job_id: str):
                 "filename": doc.filename,
                 "original_filename": doc.original_filename,
                 "status": doc.status.value,
-                "uploaded_at": doc.uploaded_at.isoformat()
+                "uploaded_at":
+ doc.uploaded_at.isoformat()
             })
     
     return documents
