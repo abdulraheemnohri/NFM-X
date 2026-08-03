@@ -2,6 +2,7 @@
 Tests for Memory API
 """
 import pytest
+from backend.app.storage.database import AsyncSessionLocal
 from backend.app.memory.models import Memory, MemoryType, MemoryStatus, EventType
 # Note: ChangeType and MemoryVersion are imported once they are defined in Step 2.
 # We will define a local fallback or import them correctly once added.
