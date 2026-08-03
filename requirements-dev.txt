@@ -1,0 +1,25 @@
+# Development dependencies for NFM-X
+# Testing
+pytest>=7.0.0
+pytest-cov>=4.0.0
+pytest-asyncio>=0.21.0
+httpx>=0.25.0
+
+# Linting and formatting
+ruff>=0.1.0
+mypy>=1.5.0
+black>=23.0.0
+isort>=5.12.0
+
+# Type checking
+sqlalchemy2-stubs>=0.0.2a35
+
+# Testing utilities
+factory-boy>=3.3.0
+freezegun>=1.2.0
+
+# Coverage
+coverage>=7.2.0
+
+# Documentation
+towncrier>=23.0.0
