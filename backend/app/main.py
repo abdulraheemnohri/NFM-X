@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 import logging
+import datetime
 
 from backend.app.config import (
     NFM_APP_NAME,
@@ -197,7 +198,6 @@ except ImportError as e:
 
 # V4 API Routers
 try:
-    from backend.app.api.health import router as health_router
     app.include_router(health_router, prefix="/api/health", tags=["v4"])
     logger.info("Health API v4 loaded")
 except ImportError as e:
@@ -225,8 +225,8 @@ except ImportError as e:
     logger.warning(f"Batch API v4 not available: {e}")
 
 try:
-    from backend.app.api.conflicts import router as conflicts_v4_router
-    app.include_router(conflicts_v4_router, prefix="/api/conflicts", tags=["v4"])
+    from backend.app.api.conflicts import router as conflicts_router
+    app.include_router(conflicts_router, prefix="/api/conflicts", tags=["v4"])
     logger.info("Conflicts API v4 loaded")
 except ImportError as e:
     logger.warning(f"Conflicts API v4 not available: {e}")
@@ -277,7 +277,7 @@ async def root():
 @app.get("/health", tags=["health"])
 async def health_check():
     """Simple health check endpoint."""
-    return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "timestamp": datetime.datetime.utcnow().isoformat()}
 
 
 if __name__ == "__main__":
