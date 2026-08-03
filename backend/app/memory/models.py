@@ -14,6 +14,7 @@ from ..storage.database import Base
 
 class MemoryStatus(str, PyEnum):
     ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"
     ARCHIVED = "ARCHIVED"
     DELETED = "DELETED"
     MERGED = "MERGED"
@@ -86,8 +87,7 @@ class Memory(Base):
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     root_id = Column(String(36), nullable=True, index=True)
     agent_id = Column(String(255), nullable=True, index=True)
-    conten
-t = Column(Text, nullable=False)
+    content = Column(Text, nullable=False)
     content_hash = Column(String(64), index=True)
     title = Column(String(500), index=True)
     description = Column(String(2000))
@@ -120,8 +120,7 @@ t = Column(Text, nullable=False)
     children = relationship("Memory", remote_side=[id], back_populates="parent")
     events = relationship("MemoryEvent", back_populates="memory", cascade="all, delete-orphan")
     versions = relationship("MemoryVersion", back_populates="memory_obj", cascade="all, delete-orphan")
-    relationships_from = relationship("MemoryRelationship", foreign_keys="MemoryRelationship.from_id", b
-ack_populates="from_memory")
+    relationships_from = relationship("MemoryRelationship", foreign_keys="MemoryRelationship.from_id", back_populates="from_memory")
     relationships_to = relationship("MemoryRelationship", foreign_keys="MemoryRelationship.to_id", back_populates="to_memory")
     conflicts_as_a = relationship("MemoryConflict", foreign_keys="MemoryConflict.memory_a_id", back_populates="memory_a")
     conflicts_as_b = relationship("MemoryConflict", foreign_keys="MemoryConflict.memory_b_id", back_populates="memory_b")
@@ -167,8 +166,7 @@ class MemoryEvent(Base):
 class MemoryRelationship(Base):
     __tablename__ = "memory_relationships"
     
-    id = Column(Stri
-ng(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     from_id = Column(String(36), ForeignKey("memories.id", ondelete="CASCADE"), index=True, nullable=False)
     to_id = Column(String(36), ForeignKey("memories.id", ondelete="CASCADE"), index=True, nullable=False)
     relationship_type = Column(Enum(RelationshipType), index=True)
@@ -179,14 +177,6 @@ ng(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     from_memory = relationship("Memory", foreign_keys=[from_id], back_populates="relationships_from")
     to_memory = relationship("Memory", foreign_keys=[to_id], back_populates="relationships_to")
     
-
-    agent_id = Column(String, index=True, default=None)
-    importance = Column(Float, default=0.5)
-    confidence = Column(Float, default=1.0)
-    root_id = Column(String, index=True, default=None)
-    normalized_content = Column(Text, default=None)
-    observed_at = Column(DateTime(timezone=True), default=None)
-    valid_from = Column(DateTime(timezone=True), default=None)
     __table_args__ = (
         {"unique_constraints": [("from_id", "to_id", "relationship_type")]},
     )
@@ -219,8 +209,7 @@ class MemoryConflict(Base):
 # SYSTEM STATISTICS MODEL
 
 class SystemStat(Base):
-    __tablename__ = "system_s
-tats"
+    __tablename__ = "system_stats"
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     stat_name = Column(String(100), index=True, unique=True)
@@ -276,8 +265,7 @@ class MemoryCheckpoint(Base):
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     checkpoint_type = Column(String(100), default="full")
     merkle_root = Column(String(255))
-    m
-emory_count = Column(Integer, default=0)
+    memory_count = Column(Integer, default=0)
     signature = Column(Text)
     public_key = Column(Text)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

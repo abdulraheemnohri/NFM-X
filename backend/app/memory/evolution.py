@@ -11,9 +11,6 @@ from sqlalchemy import select
 from ..memory.models import Memory, MemoryVersion, MemoryEvent, MemoryConflict, MemoryRelationship, MemoryStatus, ChangeType
 from ..embeddings.models import get_embedding_model
 
-def _sha256(content: str) -> str:
-    return hashlib.sha256(content.encode('utf-8')).hexdigest()
-
 class MemoryEvolution:
     """Manual memory versioning. Creates new versions, never overwrites."""
 
@@ -90,6 +87,10 @@ class MemoryEvolution:
         return new_memory
 
 
+def _sha256(content: str) -> str:
+    return hashlib.sha256(content.encode('utf-8')).hexdigest()
+
+
 class EvolutionEngine:
     """Automatically compares new memories with existing and decides relationship."""
 
@@ -98,6 +99,7 @@ class EvolutionEngine:
         self.similarity_threshold = 0.85
         self.reinforce_threshold = 0.75
         self.contradiction_threshold = 0.70
+        self._embedding_cache: Dict[str, Any] = {}
 
     async def evolve(self, db_session: AsyncSession, new_memory: Memory) -> Dict[str, Any]:
         similar = await self._find_similar_memories(db_session, new_memory)
@@ -145,22 +147,30 @@ class EvolutionEngine:
         if not candidates:
             return []
 
-        new_embedding = self.embedding_model.embed(new_memory.content)
+        # Cache embeddings to avoid O(n²) calls
+        new_embedding = self._get_cached_embedding(new_memory.content)
         scored = []
         for mem in candidates:
-            mem_embedding = self.embedding_model.embed(mem.content)
+            mem_embedding = self._get_cached_embedding(mem.content)
             similarity = self._cosine_similarity(new_embedding, mem_embedding)
             scored.append((mem, similarity))
 
         scored.sort(key=lambda x: x[1], reverse=True)
         return [mem for mem, score in scored[:limit] if score > 0.5]
 
+    def _get_cached_embedding(self, content: str) -> Any:
+        """Get embedding from cache or generate new one."""
+        content_hash = _sha256(content)
+        if content_hash not in self._embedding_cache:
+            self._embedding_cache[content_hash] = self.embedding_model.embed(content)
+        return self._embedding_cache[content_hash]
+
     def _analyze_relationship(self, new_mem: Memory, existing: Memory) -> str:
         if self._is_near_duplicate(new_mem.content, existing.content):
             return "DUPLICATE"
 
-        new_emb = self.embedding_model.embed(new_mem.content)
-        exist_emb = self.embedding_model.embed(existing.content)
+        new_emb = self._get_cached_embedding(new_mem.content)
+        exist_emb = self._get_cached_embedding(existing.content)
         similarity = self._cosine_similarity(new_emb, exist_emb)
 
         if similarity >= self.reinforce_threshold:
@@ -301,7 +311,12 @@ class EvolutionEngine:
         await db_session.commit()
 
     async def _create_relationship(self, db_session, source, target, rel_type):
-        rel = MemoryRelationship(id=str(uuid.uuid4()), memory_id=source.id, related_id=target.id,
-            relationship_type=rel_type, confidence=0.7)
+        rel = MemoryRelationship(
+            id=str(uuid.uuid4()), 
+            from_id=source.id, 
+            to_id=target.id,
+            relationship_type=rel_type, 
+            strength=0.7
+        )
         db_session.add(rel)
         await db_session.commit()
