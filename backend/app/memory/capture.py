@@ -96,6 +96,20 @@ class MemoryCapture:
             if not memory.root_id:
                 memory.root_id = memory.id
 
+            # Generate embedding and add to vector store
+            try:
+                from backend.app.embeddings.models import get_embedding_model
+                from backend.app.embeddings.vector_store import get_vector_store
+
+                emb_model = get_embedding_model()
+                memory.embedding = emb_model.encode_single(content)
+
+                v_store = get_vector_store()
+                v_store.add(memory.id, content, memory.embedding)
+                v_store.save()
+            except Exception as e:
+                logger.error(f"Failed to generate and index embedding on capture: {e}")
+
             db_session.add(memory)
             
             # Create version record
