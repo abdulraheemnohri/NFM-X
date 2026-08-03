@@ -5,7 +5,7 @@ FastAPI endpoints for memory CRUD operations
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from typing import List, Optional
 from pydantic import BaseModel, Field
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 from sqlalchemy.ext.asyncio import AsyncSession
