@@ -52,7 +52,7 @@ class StructuredExtractionResult:
         if self.entities is None:
             self.entities = []
         if self.extracted_at is None:
-            self.extracted_at = datetime.utcnow().isoformat()
+            self.extracted_at = datetime.now(timezone.utc)().isoformat()
     
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -72,7 +72,8 @@ class StructuredDataExtractor:
         tables = []
         if 'tables' in ocr_result:
             for table_data in ocr_result['tables']:
-                tables.append(ExtractedTable(
+                tables.append(ExtractedT
+able(
                     rows=table_data.get('rows', []),
                     headers=table_data.get('headers'),
                     page_number=table_data.get('page', 1),
@@ -119,14 +120,15 @@ class StructuredDataExtractor:
         tables = self.extract_tables_from_ocr({'tables': []})
         pairs = self.extract_key_value_pairs(text, page_number)
         entities = self.extract_entities(text, page_number)
-        processing_time = (time.time() - start_time) * 1000
+        processing_time = (
+time.time() - start_time) * 1000
         return StructuredExtractionResult(
             document_id=document_id,
             document_name=document_name,
             tables=tables,
             key_value_pairs=pairs,
             entities=entities,
-            extracted_at=datetime.utcnow().isoformat(),
+            extracted_at=datetime.now(timezone.utc)().isoformat(),
             processing_time_ms=processing_time
         )
     

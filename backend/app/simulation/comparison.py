@@ -63,7 +63,8 @@ class SimulationState:
 
 @dataclass
 class MemoryDiff:
-    """Represents differences between two memory states"""
+ 
+   """Represents differences between two memory states"""
     memory_id: str
     diff_type: str  # "added", "removed", "modified"
     simulated_state: Optional[MemoryState] = None
@@ -119,11 +120,12 @@ class SimulationComparator:
         metadata: Optional[Dict] = None
     ) -> SimulationState:
         """Create a new simulation state"""
-        simulation = SimulationState(
+        simulation = Sim
+ulationState(
             simulation_id=str(uuid.uuid4()),
             name=name,
             description=description,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc)(),
             metadata=metadata or {}
         )
         self.simulations[simulation.simulation_id] = simulation
@@ -172,6 +174,7 @@ class SimulationComparator:
                 diff_type="removed",
                 real_state=self.real_states[mem_id]
             ))
+
         
         # Modified: in both but different
         for mem_id in sim_memory_ids & real_memory_ids:
@@ -191,7 +194,7 @@ class SimulationComparator:
         # Create diff result
         diff = SimulationDiff(
             simulation_id=simulation_id,
-            compared_at=datetime.utcnow(),
+            compared_at=datetime.now(timezone.utc)(),
             added=added,
             removed=removed,
             modified=modified,
@@ -223,7 +226,8 @@ class SimulationComparator:
         return False
     
     def _calculate_changes(self, sim_state: MemoryState, real_state: MemoryState) -> Dict[str, Any]:
-        """Calculate specific changes between two states"""
+        """Calculate specific changes between two
+ states"""
         changes = {}
         
         if sim_state.content != real_state.content:

@@ -52,7 +52,7 @@ class CausalGraph:
     name: str
     nodes: List[GraphNode] = field(default_factory=list)
     edges: List[GraphEdge] = field(default_factory=list)
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=datetime.now(timezone.utc))
     metadata: Dict[str, Any] = field(default_factory=dict)
     
     def add_node(self, node_id: str, label: str, node_type: str = "event", properties: Optional[Dict] = None):
@@ -66,7 +66,8 @@ class CausalGraph:
             source=source,
             target=target,
             relationship_type=relationship_type,
-            weight=weight,
+ 
+           weight=weight,
             properties=properties or {}
         )
         self.edges.append(edge)
@@ -119,7 +120,8 @@ class CausalGraphVisualizer:
     
     def list_graphs(self) -> List[Dict[str, Any]]:
         return [
-            {"graph_id": g.graph_id, "name": g.name, "created_at": g.created_at.isoformat(),
+            {"graph_id": g.graph_id, "name": g.name, "crea
+ted_at": g.created_at.isoformat(),
              "node_count": len(g.nodes), "edge_count": len(g.edges)}
             for g in self.graphs.values()
         ]

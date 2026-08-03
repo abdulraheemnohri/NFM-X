@@ -62,7 +62,8 @@ async def upload_document(
     document = UploadedDocument(
         document_id=file_id,
         filename=f"{file_id}{file_ext}",
-        original_filename=file.filename,
+        original_filename=file.filena
+me,
         file_path=file_path,
         file_type=file_type,
         file_extension=file_ext,
@@ -120,7 +121,8 @@ async def list_documents(
     return DocumentListResponse(
         documents=[UploadedDocumentResponse(
             document_id=d.document_id,
-            filename=d.filename,
+            filename=d.filen
+ame,
             original_filename=d.original_filename,
             file_path=d.file_path,
             file_type=d.file_type.value,
@@ -173,7 +175,8 @@ async def update_document(document_id: str, request: UploadedDocumentUpdate):
     if request.filename is not None:
         document.filename = request.filename
     if request.metadata is not None:
-        document.metadata.update(request.metadata)
+   
+     document.metadata.update(request.metadata)
     if request.tags is not None:
         document.tags = request.tags
     if request.status is not None:
@@ -222,11 +225,12 @@ async def process_document(document_id: str, languages: Optional[List[str]] = Qu
     
     ocr_engine = OCREngine()
     await ocr_engine.initialize()
-    result = await ocr_engine.process_file(document.file_path, languages=languages, extract_tables=extract_tables)
+    result = await ocr_engine.process_fil
+e(document.file_path, languages=languages, extract_tables=extract_tables)
     
     document.ocr_result = result.to_dict()
     document.status = DocumentStatus.COMPLETED if result.success else DocumentStatus.FAILED
-    document.processed_at = datetime.utcnow()
+    document.processed_at = datetime.now(timezone.utc)()
     documents_db[document_id] = document
     
     return UploadedDocumentResponse(
@@ -273,7 +277,8 @@ async def get_document_stats():
     return {
         "total_documents": total,
         "total_size_bytes": total_size,
-        "total_size_mb": round(total_size / (1024 * 1024), 2),
+      
+  "total_size_mb": round(total_size / (1024 * 1024), 2),
         "by_type": type_counts,
         "by_status": status_counts,
         "processed_count": sum(1 for d in documents_db.values() if d.status == DocumentStatus.COMPLETED),
