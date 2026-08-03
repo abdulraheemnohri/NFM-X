@@ -75,6 +75,7 @@ class NFMClient:
         response = await client.request(method, path, **kwargs)
         response.raise_for_status()
         return response
+
     
     async def create_memory(
         self,
@@ -92,7 +93,7 @@ class NFMClient:
             metadata=metadata or {},
         )
         
-        response = await self._request("POST", "/api/memories", json=payload.model_dump())
+        response = await self._request("POST", "/api/v1/memories", json=payload.model_dump())
         return Memory.model_validate(response.json())
     
     async def get_memory(self, memory_id: str) -> Memory:
@@ -138,7 +139,8 @@ class NFMClient:
         return Memory.model_validate(response.json())
     
     async def delete_memory(self, memory_id: str) -> bool:
-        await self._request("DELETE", f"/api/memories/{memory_id}")
+        await 
+self._request("DELETE", f"/api/memories/{memory_id}")
         return True
     
     async def search(
@@ -155,7 +157,7 @@ class NFMClient:
             "keyword": keyword,
         }
         
-        response = await self._request("GET", "/api/search", params=params)
+        response = await self._request("GET", "/api/v1/search", params=params)
         return SearchResponse.model_validate(response.json())
     
     async def build_context(
@@ -170,7 +172,7 @@ class NFMClient:
             "max_tokens": max_tokens,
         }
         
-        response = await self._request("GET", "/api/context", params=params)
+        response = await self._request("GET", "/api/v1/context", params=params)
         return Context.model_validate(response.json())
     
     async def get_stats(self) -> MemoryStats:
@@ -187,7 +189,7 @@ class NFMClient:
         if resolved is not None:
             params["resolved"] = resolved
         
-        response = await self._request("GET", "/api/conflicts", params=params)
+        response = await self._request("GET", "/api/v1/conflicts", params=params)
         return response.json()
     
     async def detect_conflicts(self) -> Dict[str, Any]:
@@ -199,7 +201,8 @@ class NFMClient:
         return Conflict.model_validate(response.json())
     
     async def get_graph(self) -> GraphData:
-        response = await self._request("GET", "/api/graph")
+        response = await self._request("GET
+", "/api/v1/graph")
         return GraphData.model_validate(response.json())
     
     async def create_relationship(
