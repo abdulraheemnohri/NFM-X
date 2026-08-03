@@ -6,7 +6,8 @@ Track and manage skill executions, results, and performance.
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
+import json
 from enum import Enum
 
 from backend.app.database import get_db_connection
@@ -79,7 +80,8 @@ class SkillExecutionRequest(BaseModel):
 
 class SkillExecutionResponse(Ba
 seModel):
-    execution_id: str
+   
+ execution_id: str
     skill_id: int
     skill_name: str
     status: SkillStatus
@@ -149,7 +151,8 @@ async def list_skills(
             status=SkillStatus(row[10]),
             created_at=datetime.fromisoformat(row[11]),
             updated_at=datetime.f
-romisoformat(row[12]),
+romisoformat
+(row[12]),
             last_executed_at=datetime.fromisoformat(row[13]) if row[13] else None,
             execution_count=row[14]
         ))
@@ -217,8 +220,9 @@ async def create_skill(skill: SkillCreate):
         **skill.dict(),
         status=SkillStatus.AVAILAB
 LE,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+       
+ created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
         execution_count=0
     )
 
@@ -269,7 +273,7 @@ async def update_skill(skill_id: int, skill: SkillUpdate):
     
     if updates:
         updates.append("updated_at = ?")
-        params.append(datetime.utcnow().isoformat())
+        params.append(datetime.now(timezone.utc).isoformat())
         params.append(skill_id)
         
         query = "UPDATE skills SET " + ", ".join(updates) + " WHERE id = ?"
@@ -280,7 +284,8 @@ async def update_skill(skill_id: int, skill: SkillUpdate):
     async with db.execute(
         "SELECT * FROM skills WHERE id = ?", (skill_id,)
     
-) as cursor:
+) as curso
+r:
         row = await cursor.fetchone()
     
     return SkillResponse(
@@ -337,14 +342,15 @@ async def execute_skill(
     handler_path = row[1]
     skill_config = row[2] or {}
     
-    execution_id = f"exec_{skill_id}_{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}"
-    started_at = datetime.utcnow()
+    execution_id = f"exec_{skill_id}_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}"
+    started_at = datetime.now(timezone.utc)
     
     async with db.execute(
         """INSERT INTO skill_executions (execution_id, skill_id, skill_name, input_data, status, started_at)
            VALUES (?, ?, ?, ?, ?, ?)""",
         (execution_id, skill_id, skill_name
-, json.dumps(request.input_data), SkillStatus.RUNNING.value, started_at.isoformat())
+, json.du
+mps(request.input_data), SkillStatus.RUNNING.value, started_at.isoformat())
     ):
         pass
     
@@ -371,7 +377,7 @@ async def execute_skill(
     else:
         try:
             result = await _execute_skill_sync(handler_path, skill_config, request.input_data)
-            completed_at = datetime.utcnow()
+            completed_at = datetime.now(timezone.utc)
             execution_time = (completed_at - started_at).total_seconds() * 1000
             
             async with db.execute(
@@ -396,9 +402,10 @@ async def execute_skill(
         except Exception as e:
             async with db.execute(
                 """UPDATE skill_execut
-ions SET status = ?, error = ?, completed_at = ? 
+ions SET
+ status = ?, error = ?, completed_at = ? 
                    WHERE execution_id = ?""",
-                (SkillStatus.FAILED.value, str(e), datetime.utcnow().isoformat(), execution_id)
+                (SkillStatus.FAILED.value, str(e), datetime.now(timezone.utc).isoformat(), execution_id)
             ):
                 pass
             await db.commit()
@@ -459,7 +466,8 @@ async def list_skill_executions(
     db = await get_db_connection()
     async with db.execute(
         "SELECT execution_id
-, skill_id, skill_name, status, started_at, completed_at FROM skill_executions WHERE skill_id = ? ORDER BY started_at DESC LIMIT ? OFFSET ?",
+, skill
+_id, skill_name, status, started_at, completed_at FROM skill_executions WHERE skill_id = ? ORDER BY started_at DESC LIMIT ? OFFSET ?",
         (skill_id, limit, offset)
     ) as cursor:
         rows = await cursor.fetchall()
@@ -518,12 +526,13 @@ async def _execute_skill_sync(handler_path: str, config: Dict, input_data: Dict)
 
 
 async def 
-_execute_skill_async(skill_id: int, execution_id: str, handler_path: str, config: Dict, input_data: Dict):
+_execu
+te_skill_async(skill_id: int, execution_id: str, handler_path: str, config: Dict, input_data: Dict):
     """Execute a skill asynchronously."""
     import importlib
     
     try:
-        started_at = datetime.utcnow()
+        started_at = datetime.now(timezone.utc)
         db = await get_db_connection()
         
         module_path, function_name = handler_path.rsplit('.', 1)
@@ -531,7 +540,7 @@ _execute_skill_async(skill_id: int, execution_id: str, handler_path: str, config
         handler = getattr(module, function_name)
         
         result = await handler(input_data, config)
-        completed_at = datetime.utcnow()
+        completed_at = datetime.now(timezone.utc)
         execution_time = (completed_at - started_at).total_seconds() * 1000
         
         async with db.execute(
@@ -546,10 +555,9 @@ _execute_skill_async(skill_id: int, execution_id: str, handler_path: str, config
         async with db.execute(
             """UPDATE skill_executions SET status = ?, error = ?, completed_at = ? 
                WHERE execution_id = ?""",
-            (SkillStatus.FAILED.value, str(e), datetime.utcnow().isoformat(), execution_id)
+            (SkillStatus.FAILED.value, str(e), datetime.now(timezone.utc).isoformat(), execution_id)
         ):
             pass
         await db.commit()
 
 
-import json
