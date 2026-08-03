@@ -19,7 +19,7 @@ class VectorStore:
         self._id_to_index = {}
         self._index_to_id = []
         self._embeddings = {}
-        self._index_path = Path(settings.faiss_index_path)
+        self._index_path = Path(settings.vector_store_dir) / "faiss_index"
         self._is_loaded = False
     
     def load(self):
@@ -123,9 +123,18 @@ class VectorStore:
             return False
         try:
             if memory_id in self._id_to_index:
+                index = self._id_to_index[memory_id]
                 del self._id_to_index[memory_id]
-            if memory_id in self._embeddings:
-                del self._embeddings[memory_id]
+                
+                # Remove from index_to_id list
+                if index < len(self._index_to_id):
+                    self._index_to_id[index] = None  # Mark as removed
+                
+                if memory_id in self._embeddings:
+                    del self._embeddings[memory_id]
+                
+                # Rebuild the FAISS index to actually remove the vector
+                self._rebuild_index_after_removal()
             return True
         except Exception as e:
             logger.error(f"Failed to remove vector: {e}")
@@ -150,6 +159,43 @@ class VectorStore:
             logger.error(f"Failed to rebuild index: {e}")
             return False
 
+
+
+    def _rebuild_index_after_removal(self):
+        """Rebuild the FAISS index after removing vectors."""
+        if not self.is_available:
+            return
+        
+        try:
+            import faiss
+            # Filter out None entries from index_to_id
+            valid_entries = [mid for mid in self._index_to_id if mid is not None]
+            
+            if not valid_entries:
+                # If no entries left, create a new empty index
+                dimension = embedding_model.dimension
+                self._index = faiss.IndexFlatIP(dimension)
+                self._index_to_id = []
+                self._id_to_index = {}
+                return
+            
+            # Rebuild index with remaining vectors
+            dimension = embedding_model.dimension
+            new_index = faiss.IndexFlatIP(dimension)
+            
+            for memory_id, embedding in self._embeddings.items():
+                if memory_id in self._id_to_index:
+                    vector = np.array([embedding], dtype=np.float32)
+                    new_index.add(vector)
+            
+            self._index = new_index
+            # Rebuild the mapping
+            self._index_to_id = list(self._embeddings.keys())
+            for i, memory_id in enumerate(self._index_to_id):
+                self._id_to_index[memory_id] = i
+                
+        except Exception as e:
+            logger.error(f"Failed to rebuild index after removal: {e}")
 
 vector_store = VectorStore()
 vector_store.load()
