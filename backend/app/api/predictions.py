@@ -8,7 +8,7 @@ from datetime import datetime
 
 from backend.app.predictions.engine import PredictionEngineV3, PredictionResult
 
-router = APIRouter(prefix="/api/v1/predictions", tags=["Predictions"])
+router = APIRouter(prefix="", tags=["Predictions"])
 
 
 # Initialize prediction engine
@@ -63,7 +63,8 @@ async def create_prediction(request: PredictionRequest):
         return PredictionResponse(
             prediction_id=result.prediction_id,
             query=result.query,
-            prediction_value=result.prediction_value,
+            prediction_value=result.prediction_val
+ue,
             confidence=result.confidence,
             confidence_lower=result.confidence_lower,
             confidence_upper=result.confidence_upper,
