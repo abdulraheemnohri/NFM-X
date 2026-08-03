@@ -43,7 +43,7 @@ export class NFMApi {
    * Create a new memory
    */
   async createMemory(payload: MemoryCreate): Promise<Memory> {
-    const response = await this.client.post<Memory>('/api/memories', payload);
+    const response = await this.client.post<Memory>('/api/v1/memories', payload);
     return response.data;
   }
 
@@ -51,7 +51,7 @@ export class NFMApi {
    * Get a specific memory by ID
    */
   async getMemory(memoryId: string): Promise<Memory> {
-    const response = await this.client.get<Memory>(`/api/memories/${memoryId}`);
+    const response = await this.client.get<Memory>(`/api/v1/memories/${memoryId}`);
     return response.data;
   }
 
@@ -67,7 +67,7 @@ export class NFMApi {
     if (filters.search) params.q = filters.search;
 
     const response = await this.client.get<PaginatedResponse<Memory>>(
-      '/api/memories',
+      '/api/v1/memories',
       { params }
     );
     return response.data;
@@ -78,7 +78,7 @@ export class NFMApi {
    */
   async updateMemory(memoryId: string, payload: MemoryUpdate): Promise<Memory> {
     const response = await this.client.put<Memory>(
-      `/api/memories/${memoryId}`,
+      `/api/v1/memories/${memoryId}`,
       payload
     );
     return response.data;
@@ -88,7 +88,7 @@ export class NFMApi {
    * Delete a memory (soft delete)
    */
   async deleteMemory(memoryId: string): Promise<boolean> {
-    await this.client.delete(`/api/memories/${memoryId}`);
+    await this.client.delete(`/api/v1/memories/${memoryId}`);
     return true;
   }
 
@@ -104,7 +104,7 @@ export class NFMApi {
     keyword: boolean = true
   ): Promise<SearchResponse> {
     const params = { q: query, limit, semantic, keyword };
-    const response = await this.client.get<SearchResponse>('/api/search', { params });
+    const response = await this.client.get<SearchResponse>('/api/v1/search', { params });
     return response.data;
   }
 
@@ -119,7 +119,7 @@ export class NFMApi {
     maxTokens: number = 2000
   ): Promise<Context> {
     const params = { query, limit, max_tokens: maxTokens };
-    const response = await this.client.get<Context>('/api/context', { params });
+    const response = await this.client.get<Context>('/api/v1/context', { params });
     return response.data;
   }
 
@@ -129,7 +129,7 @@ export class NFMApi {
    * Get system statistics
    */
   async getStats(): Promise<MemoryStats> {
-    const response = await this.client.get<MemoryStats>('/api/stats');
+    const response = await this.client.get<MemoryStats>('/api/v1/stats');
     return response.data;
   }
 
@@ -145,7 +145,7 @@ export class NFMApi {
     if (filters.resolved !== undefined) params.resolved = filters.resolved;
 
     const response = await this.client.get<PaginatedResponse<Conflict>>(
-      '/api/conflicts',
+      '/api/v1/conflicts',
       { params }
     );
     return response.data;
@@ -155,7 +155,7 @@ export class NFMApi {
    * Detect new conflicts
    */
   async detectConflicts(): Promise<{ count: number }> {
-    const response = await this.client.post<{ count: number }>('/api/conflicts/detect');
+    const response = await this.client.post<{ count: number }>('/api/v1/conflicts/detect');
     return response.data;
   }
 
@@ -164,7 +164,7 @@ export class NFMApi {
    */
   async resolveConflict(conflictId: string): Promise<Conflict> {
     const response = await this.client.post<Conflict>(
-      `/api/conflicts/${conflictId}/resolve`
+      `/api/v1/conflicts/${conflictId}/resolve`
     );
     return response.data;
   }
@@ -175,7 +175,7 @@ export class NFMApi {
    * Get the memory graph
    */
   async getGraph(): Promise<GraphData> {
-    const response = await this.client.get<GraphData>('/api/graph');
+    const response = await this.client.get<GraphData>('/api/v1/graph');
     return response.data;
   }
 
@@ -189,7 +189,7 @@ export class NFMApi {
     weight: number = 1.0
   ): Promise<any> {
     const payload = { source_id: sourceId, target_id: targetId, type, weight };
-    const response = await this.client.post('/api/graph/relationships', payload);
+    const response = await this.client.post('/api/v1/graph/relationships', payload);
     return response.data;
   }
 
@@ -197,7 +197,7 @@ export class NFMApi {
    * Delete a relationship between memories
    */
   async deleteRelationship(sourceId: string, targetId: string): Promise<boolean> {
-    await this.client.delete(`/api/graph/relationships/${sourceId}/${targetId}`);
+    await this.client.delete(`/api/v1/graph/relationships/${sourceId}/${targetId}`);
     return true;
   }
 
