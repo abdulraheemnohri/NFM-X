@@ -80,7 +80,8 @@ async def list_patterns(
     if tag:
         conditions.append("tags LIKE ?")
         params
-.append(f"%{tag}%")
+.append(f"%{tag
+}%")
     
     if conditions:
         query += " WHERE " + " AND ".join(conditions)
@@ -144,7 +145,8 @@ async def create_pattern(pattern: PatternCreate):
     
     async with db.execute(
         """INSERT INTO search_pat
-terns (name, pattern, description, case_sensitive, enabled, tags)
+terns (name, p
+attern, description, case_sensitive, enabled, tags)
            VALUES (?, ?, ?, ?, ?, ?)""",
         (
             pattern.name,
@@ -162,8 +164,8 @@ terns (name, pattern, description, case_sensitive, enabled, tags)
     return PatternResponse(
         id=pattern_id,
         **pattern.dict(),
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
         usage_count=0
     )
 
@@ -205,11 +207,12 @@ async def update_pattern(pattern_id: int, pattern: PatternUpdate):
     
     if updates:
         updates.append("updated_at = ?")
-        params.append(datetime.utcnow().isoformat())
+        params.append(datetime.now(timezone.utc).isoformat())
         params.append(pattern_id)
         
         query = "UPDATE search_patterns SET " + ", ".join(upd
-ates) + " WHERE id = ?"
+ates) + " WHE
+RE id = ?"
         async with db.execute(query, params):
             pass
         await db.commit()
@@ -275,7 +278,8 @@ async def search_with_pattern(request: PatternSearchRequest):
         if matches:
             for match in matches:
                 resu
-lts.append(PatternSearchResult(
+lts.append(P
+atternSearchResult(
                     memory_id=memory_id,
                     content=content,
                     matched_text=match.group(0),
@@ -312,7 +316,7 @@ async def search_with_saved_pattern(
     
     async with db.execute(
         "UPDATE search_patterns SET last_used_at = ?, usage_count = usage_count + 1 WHERE id = ?",
-        (datetime.utcnow().isoformat(), pattern_id)
+        (datetime.now(timezone.utc).isoformat(), pattern_id)
     ):
         pass
     await db.commit()
