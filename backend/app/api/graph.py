@@ -4,8 +4,10 @@ NFM-X Graph API
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import List, Optional
 from pydantic import BaseModel
+from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
+import uuid
 
 from ..memory.models import Memory, MemoryRelationship, RelationshipType
 from ..storage.database import get_db
@@ -75,7 +77,12 @@ async def get_graph(
         relationships = matching_relationships[:limit]
         memory_ids = visited_nodes
     else:
-        result = await db.execute(select(MemoryRelationship).limit(limit))
+        # Add pagination for full graph retrieval
+        result = await db.execute(
+            select(MemoryRelationship)
+            .order_by(MemoryRelationship.created_at)
+            .limit(limit)
+        )
         relationships = result.scalars().all()
         memory_ids = set()
         for rel in relationships:
@@ -164,9 +171,6 @@ async def create_relationship(
     strength: float = 1.0,
     db: AsyncSession = Depends(get_db)
 ) -> dict:
-    import uuid
-    from datetime import timezone
-    
     for mem_id in [from_id, to_id]:
         result = await db.execute(select(Memory).where(Memory.id == mem_id))
         if not result.scalar_one_or_none():
@@ -206,7 +210,3 @@ async def delete_relationship(relationship_id: str, db: AsyncSession = Depends(g
     
     await db.delete(relationship)
     await db.commit()
-
-
-from datetime import datetime, timezone
-import datetime
