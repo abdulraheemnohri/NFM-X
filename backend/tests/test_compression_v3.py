@@ -36,7 +36,7 @@ class TestCompressionV3:
         scheduler = CompressionScheduler(config)
         
         from datetime import datetime, timedelta
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)()
         old_date = now - timedelta(days=40)
         
         # Old and low importance - eligible
@@ -48,7 +48,8 @@ class TestCompressionV3:
         assert scheduler._is_eligible_for_compression(memory2) is False
         
         # Old but high importance - not eligible
-        memory3 = {"id": "mem_3", "importance": 0.8, "created_at": old_date.isoformat()}
+        memory3 = {"id": "mem_3", "importance": 0.8, "cr
+eated_at": old_date.isoformat()}
         assert scheduler._is_eligible_for_compression(memory3) is False
     
     def test_is_eligible_for_archive(self):
@@ -57,7 +58,7 @@ class TestCompressionV3:
         scheduler = CompressionScheduler(config)
         
         from datetime import datetime, timedelta
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)()
         old_date = now - timedelta(days=100)
         recent_date = now - timedelta(days=80)
         

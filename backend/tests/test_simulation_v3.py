@@ -24,7 +24,7 @@ class TestSimulationV3:
             memory_id="mem_1",
             content={"text": "test"},
             version="v1",
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc)(),
             metadata={"importance": 0.5}
         )
         simulation.add_memory_state(state)
@@ -42,7 +42,7 @@ class TestSimulationV3:
             memory_id="mem_1",
             content={"text": "simulated"},
             version="v2",
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)()
         )
         simulation.add_memory_state(sim_state)
         
@@ -51,12 +51,13 @@ class TestSimulationV3:
             memory_id="mem_1",
             content={"text": "real"},
             version="v1",
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)()
         )
         comparator.update_real_state("mem_1", real_state)
         
         # Compare
-        diff = comparator.compare_simulation(simulation.simulation_id)
+        diff = compar
+ator.compare_simulation(simulation.simulation_id)
         
         assert len(diff.modified) == 1
         assert diff.modified[0].memory_id == "mem_1"
@@ -72,7 +73,7 @@ class TestSimulationV3:
             memory_id="mem_1",
             content={"text": "new"},
             version="v1",
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)()
         )
         simulation.add_memory_state(sim_state)
         
@@ -92,7 +93,7 @@ class TestSimulationV3:
             memory_id="mem_1",
             content={"text": "real only"},
             version="v1",
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)()
         )
         comparator.update_real_state("mem_1", real_state)
         
@@ -111,7 +112,8 @@ class TestSimulationV3:
         simulations = comparator.list_simulations()
         assert len(simulations) == 2
     
-    def test_get_simulation(self):
+    def test_get_simulation
+(self):
         """Test getting a specific simulation"""
         comparator = SimulationComparator()
         simulation = comparator.create_simulation("Test Simulation")
@@ -131,10 +133,10 @@ class TestSimulationV3:
         """Test state difference detection"""
         comparator = SimulationComparator()
         
-        state1 = MemoryState("mem_1", {"text": "a"}, "v1", datetime.utcnow())
-        state2 = MemoryState("mem_1", {"text": "b"}, "v1", datetime.utcnow())
+        state1 = MemoryState("mem_1", {"text": "a"}, "v1", datetime.now(timezone.utc)())
+        state2 = MemoryState("mem_1", {"text": "b"}, "v1", datetime.now(timezone.utc)())
         
         assert comparator._states_differ(state1, state2) is True
         
-        state3 = MemoryState("mem_1", {"text": "a"}, "v1", datetime.utcnow())
+        state3 = MemoryState("mem_1", {"text": "a"}, "v1", datetime.now(timezone.utc)())
         assert comparator._states_differ(state1, state3) is False

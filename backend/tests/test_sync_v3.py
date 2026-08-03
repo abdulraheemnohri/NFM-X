@@ -10,7 +10,7 @@ class TestSyncV3:
         """Test detecting a sync conflict"""
         resolver = SyncConflictResolver()
         
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)()
         conflict = resolver.detect_conflict(
             memory_id="mem_1",
             local_version="v1",
@@ -30,7 +30,7 @@ class TestSyncV3:
         """Test auto-resolving by timestamp"""
         resolver = SyncConflictResolver(default_strategy=ConflictResolutionStrategy.TIMESTAMP)
         
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)()
         past = now - timedelta(days=1)
         
         resolver.detect_conflict(
@@ -53,9 +53,10 @@ class TestSyncV3:
         """Test auto-resolving by version"""
         resolver = SyncConflictResolver(default_strategy=ConflictResolutionStrategy.VERSION)
         
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)()
         resolver.detect_conflict(
             memory_id="mem_1",
+
             local_version="v2",
             remote_version="v1",
             local_timestamp=now,
@@ -74,7 +75,7 @@ class TestSyncV3:
         """Test auto-resolving by merge"""
         resolver = SyncConflictResolver(default_strategy=ConflictResolutionStrategy.MERGE)
         
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)()
         resolver.detect_conflict(
             memory_id="mem_1",
             local_version="v1",
@@ -96,7 +97,7 @@ class TestSyncV3:
         """Test auto-resolving all conflicts"""
         resolver = SyncConflictResolver()
         
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)()
         resolver.detect_conflict("mem_1", "v1", "v2", now, now, {"text": "a"}, {"text": "b"}, "device_1")
         resolver.detect_conflict("mem_2", "v1", "v2", now, now, {"text": "c"}, {"text": "d"}, "device_1")
         
@@ -107,7 +108,8 @@ class TestSyncV3:
     def test_set_strategy_for_memory(self):
         """Test setting strategy for specific memory"""
         resolver = SyncConflictResolver()
-        resolver.set_strategy_for_memory("mem_1", ConflictResolutionStrategy.PREFER_SOURCE)
+        resolve
+r.set_strategy_for_memory("mem_1", ConflictResolutionStrategy.PREFER_SOURCE)
         
         assert resolver.strategy_config["mem_1"] == ConflictResolutionStrategy.PREFER_SOURCE
     
@@ -115,7 +117,7 @@ class TestSyncV3:
         """Test listing conflicts"""
         resolver = SyncConflictResolver()
         
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)()
         resolver.detect_conflict("mem_1", "v1", "v2", now, now, {}, {}, "device_1")
         resolver.detect_conflict("mem_2", "v1", "v2", now, now, {}, {}, "device_1")
         
