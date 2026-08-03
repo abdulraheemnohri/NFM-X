@@ -7,7 +7,7 @@ from typing import List, Optional, Dict, Any
 
 from backend.app.sharing.permissions import SharingPermissionManager, SharingBundle
 
-router = APIRouter(prefix="/api/v1/sharing", tags=["Sharing"])
+router = APIRouter(prefix="", tags=["Sharing"])
 
 
 class CreateBundleRequest(BaseModel):
@@ -71,6 +71,7 @@ async def create_bundle(request: CreateBundleRequest, user_id: str = "system"):
     )
 
 
+
 @router.get("/bundles", response_model=List[BundleResponse])
 async def list_bundles(user_id: Optional[str] = None):
     """
@@ -131,7 +132,8 @@ async def update_permissions(
     Update permissions for a user on a bundle
     
     Only bundle owner or admin can update permissions
-    """
+    "
+""
     success = sharing_manager.update_bundle_permissions(
         bundle_id=bundle_id,
         user_id=current_user,
