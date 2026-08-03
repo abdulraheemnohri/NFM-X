@@ -5,12 +5,14 @@ from fastapi import APIRouter, Depends, Query
 from typing import List, Optional
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
+import re
+import html
 
 from ..memory.models import Memory
 from ..retrieval.engine import RetrievalEngine
 from ..storage.database import get_db
 
-router = APIRouter(prefix="/memory", tags=["Context"])
+router = APIRouter(prefix="", tags=["Context"])
 
 
 class ContextRequest(BaseModel):
@@ -39,6 +41,40 @@ class ContextResponse(BaseModel):
     query: Optional[str]
 
 
+def count_tokens(text: str) -> int:
+    """Count tokens using a simple but more accurate approach than word splitting."""
+    # Basic tokenization that handles common patterns
+    # This is more accurate than simple word splitting
+    tokens = re.findall(r"\w+|[^\s\w]", text)
+    return len(tokens)
+
+
+def sanitize_content(content: str) -> str:
+    """Sanitize content to prevent prompt injection attacks."""
+    if not content:
+        return content
+    
+    # Escape XML/HTML special characters to prevent injection in structured prompts
+    sanitized = html.escape(content)
+    
+    # Remove potentially dangerous patterns
+    dangerous_patterns = [
+        r'<\?xml',
+        r'<\?script',
+        r'<\?/script',
+        r'javascript:',
+        r'onerror=',
+        r'onload=',
+        r'data:',
+        r'vbscript:',
+    ]
+    
+    for pattern in dangerous_patterns:
+        sanitized = re.sub(pattern, '[REDACTED]', sanitized, flags=re.IGNORECASE)
+    
+    return sanitized
+
+
 @router.post("/context", response_model=ContextResponse)
 async def build_context(request: ContextRequest, db: AsyncSession = Depends(get_db)) -> ContextResponse:
     retrieval = RetrievalEngine()
@@ -53,12 +89,14 @@ async def build_context(request: ContextRequest, db: AsyncSession = Depends(get_
     context_parts = []
     memory_contexts = []
     total_tokens = 0
+    processed_memories = []
     
     for memory, score in zip(memories, scores):
         if score < request.min_relevance:
             continue
         
-        content_tokens = len(memory.content.split())
+        # Use proper token counting
+        content_tokens = count_tokens(memory.content)
         if total_tokens + content_tokens > request.max_tokens:
             break
         
@@ -72,6 +110,7 @@ async def build_context(request: ContextRequest, db: AsyncSession = Depends(get_
             categories=memory.categories or []
         ))
         total_tokens += content_tokens
+        processed_memories.append(memory)
         
         context_parts.append(f"--- Memory {memory.id} ---")
         if memory.title:
@@ -81,9 +120,15 @@ async def build_context(request: ContextRequest, db: AsyncSession = Depends(get_
         context_parts.append(f"Content: {memory.content}")
         context_parts.append("")
     
-    for memory in memories[:len(memory_contexts)]:
+    # Batch update access counts to avoid N+1 commits
+    for memory in processed_memories:
         memory.access_count += 1
-    await db.commit()
+    
+    if processed_memories:
+        await db.commit()
+        # Refresh all memories to get updated access counts
+        for memory in processed_memories:
+            await db.refresh(memory)
     
     return ContextResponse(
         context="\n".join(context_parts),
@@ -105,30 +150,38 @@ async def build_prompt_context(request: ContextRequest, db: AsyncSession = Depen
         db_session=db
     )
     
-    context_string = """
-You are an AI assistant with access to the following relevant memories.
+    context_string = """You are an AI assistant with access to the following relevant memories.
 Use this information to provide accurate and context-aware responses.
 If the information in memories conflicts, note the conflict in your response.
 
-<context>
-"""
+<context>"""
     
+    processed_memories = []
     for memory, score in zip(memories, scores):
         if score < request.min_relevance:
             continue
-        context_string += f"\n<memory id=\"{memory.id}\" relevance=\"{score:.2f}\">\n"
-        context_string += f"  <title>{memory.title or 'Untitled'}</title>\n"
+        
+        # Sanitize content to prevent prompt injection
+        sanitized_title = sanitize_content(memory.title or 'Untitled')
+        sanitized_content = sanitize_content(memory.content)
+        
+        context_string += f"\n<memory id="{memory.id}" relevance="{score:.2f}">\n"
+        context_string += f"  <title>{sanitized_title}</title>\n"
         context_string += f"  <type>{memory.memory_type.value if memory.memory_type else 'TEXT'}</type>\n"
-        context_string += f"  <content>{memory.content}</content>\n"
+        context_string += f"  <content>{sanitized_content}</content>\n"
         context_string += f"</memory>\n"
+        processed_memories.append(memory)
     
     context_string += "\n</context>\n"
     
-    for memory in memories[:len([m for m, s in zip(memories, scores) if s >= request.min_relevance])]:
+    # Batch update access counts to avoid N+1 commits
+    for memory in processed_memories:
         memory.access_count += 1
-    await db.commit()
+    
+    if processed_memories:
+        await db.commit()
     
     return {
         "prompt": context_string,
-        "memory_count": len([m for m, s in zip(memories, scores) if s >= request.min_relevance])
+        "memory_count": len(processed_memories)
     }
