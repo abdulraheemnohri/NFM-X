@@ -10,7 +10,7 @@ from sqlalchemy import select, or_
 from ..memory.models import Memory, MemoryRelationship, RelationshipType
 from ..storage.database import get_db
 
-router = APIRouter(prefix="/graph", tags=["Graph"])
+router = APIRouter(prefix="", tags=["Graph"])
 
 
 class GraphNode(BaseModel):
@@ -42,20 +42,52 @@ async def get_graph(
     limit: int = Query(default=100, ge=1, le=1000),
     db: AsyncSession = Depends(get_db)
 ) -> GraphResponse:
-    result = await db.execute(select(MemoryRelationship))
-    relationships = result.scalars().all()
-    
-    memory_ids = set()
-    for rel in relationships:
-        memory_ids.add(rel.from_id)
-        memory_ids.add(rel.to_id)
-    
     if memory_id:
-        if memory_id not in memory_ids:
-            memory_ids.add(memory_id)
+        # Depth-limited BFS relationship retrieval to prevent full table scans
+        visited_nodes = {memory_id}
+        current_layer = {memory_id}
+        matching_relationships = []
+
+        for _ in range(depth):
+            if not current_layer:
+                break
+            result = await db.execute(
+                select(MemoryRelationship).where(
+                    or_(
+                        MemoryRelationship.from_id.in_(list(current_layer)),
+                        MemoryRelationship.to_id.in_(list(current_layer))
+                    )
+                ).limit(limit)
+            )
+            layer_rels = result.scalars().all()
+            if not layer_rels:
+                break
+
+            next_layer = set()
+            for rel in layer_rels:
+                matching_relationships.append(rel)
+                for nid in [rel.from_id, rel.to_id]:
+                    if nid not in visited_nodes:
+                        visited_nodes.add(nid)
+                        next_layer.add(nid)
+            current_layer = next_layer
+
+        relationships = matching_relationships[:limit]
+        memory_ids = visited_nodes
+    else:
+        result = await db.execute(select(MemoryRelationship).limit(limit))
+        relationships = result.scalars().all()
+        memory_ids = set()
+        for rel in relationships:
+            memory_ids.add(rel.from_id)
+            memory_ids.add(rel.to_id)
     
-    result = await db.execute(select(Memory).where(Memory.id.in_(memory_ids)))
-    memories = result.scalars().all()
+    if memory_ids:
+        result = await db.execute(select(Memory).where(Memory.id.in_(list(memory_ids))))
+        memories = result.scalars().all()
+    else:
+        memories = []
+
     memory_map = {m.id: m for m in memories}
     
     nodes = []
@@ -71,9 +103,6 @@ async def get_graph(
     
     edges = []
     for rel in relationships:
-        if memory_id:
-            if rel.from_id != memory_id and rel.to_id != memory_id:
-                continue
         edges.append(GraphEdge(
             id=rel.id,
             source=rel.from_id,
