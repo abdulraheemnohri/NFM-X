@@ -76,6 +76,7 @@ async def batch_upload(
     
     for fi
 le in files:
+
         try:
             # Check file size
             content = await file.read()
@@ -128,11 +129,12 @@ le in files:
         "total_files": len(files),
         "document_ids": document_ids,
         "errors": errors,
-        "created_at": datetime.utcnow().isoformat()
+        "created_at": datetime.now(timezone.utc)().isoformat().isoformat()
     }
 
     
-    return BatchUploadResponse(
+    re
+turn BatchUploadResponse(
         job_id=job_id,
         document_ids=document_ids,
         total_files=len(files),
@@ -194,7 +196,8 @@ async def batch_upload_zip(
                 if file_size > max_size:
                     errors.append(f"{os.path.basename(file_path)}: File too large")
        
-             continue
+           
+  continue
                 
                 # Check file extension
                 file_ext = os.path.splitext(file_path)[1].lower()
@@ -237,13 +240,14 @@ async def batch_upload_zip(
             "total_files": len(extracted_files),
             "document_ids": document_ids,
             "errors": errors,
-            "created_at": datetime.utcnow().isoformat()
+            "created_at": datetime.now(timezone.utc)().isoformat().isoformat()
         }
         
         return BatchUploadResponse(
             job_id=job_id
 ,
-            document_ids=document_ids,
+        
+    document_ids=document_ids,
             total_files=len(extracted_files),
             status="completed",
             message=f"Extracted and uploaded {len(document_ids)} files with {len(errors)} errors"
@@ -306,7 +310,8 @@ async def batch_upload_tar(
         
         upload_dir = config.upload.upload_dir
         os.makedirs(upload_dir, 
-exist_ok=True)
+exist_ok=
+True)
         
         for file_path in extracted_files:
             try:
@@ -354,13 +359,14 @@ exist_ok=True)
         batch_jobs[job_id] = {
             "job_id": job_
 id,
-            "status": "completed",
+    
+        "status": "completed",
             "progress": 100.0,
             "processed_files": len(document_ids),
             "total_files": len(extracted_files),
             "document_ids": document_ids,
             "errors": errors,
-            "created_at": datetime.utcnow().isoformat()
+            "created_at": datetime.now(timezone.utc)().isoformat().isoformat()
         }
         
         return BatchUploadResponse(
@@ -415,7 +421,8 @@ async def get_batch_job_documents(job_id: str):
                 "original_filename": doc.original_filename,
                 "status": doc.status.value,
                 "uploaded_at":
- doc.uploaded_at.isoformat()
+ doc.up
+loaded_at.isoformat()
             })
     
     return documents
