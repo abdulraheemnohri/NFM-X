@@ -13,7 +13,7 @@ from datetime import datetime
 from backend.app.ocr.engine import OCREngine, OCRResult, OCRJob, OCREngineType
 from backend.app.config import get_config
 
-router = APIRouter(prefix="/api/v1/ocr", tags=["OCR"])
+router = APIRouter(prefix="", tags=["OCR"])
 
 
 # Initialize OCR engine
@@ -81,7 +81,8 @@ async def process_file(
     
     Supports: PDF, PNG, JPG, JPEG
     Engines: easyocr, tesseract, azure, google
-    """
+  
+  """
     # Save uploaded file temporarily
     temp_dir = "./temp_uploads"
     os.makedirs(temp_dir, exist_ok=True)
@@ -146,7 +147,8 @@ async def process_file_async(
     
     file_ext = os.path.splitext(file.filename)[1].lower()
     file_path = os.path.join(upload_dir, f"{uuid.uuid4()}{file_ext}")
-    
+  
+  
     # Save file
     with open(file_path, "wb") as f:
         f.write(await file.read())
@@ -203,7 +205,8 @@ async def get_job_status(job_id: str):
         progress=job.progress,
         created_at=job.created_at.isoformat(),
         completed_at=job.completed_at.isoformat() if job.completed_at else None,
-        result=OCRResponse(
+        result=O
+CRResponse(
             text=job.result.text if job.result else "",
             languages=job.result.languages if job.result else [],
             confidence=job.result.confidence if job.result else 0.0,
@@ -263,7 +266,8 @@ async def batch_process(
             job_id=None,
             languages=request.languages,
             extract_tables=request.extract_tables
-        )
+ 
+       )
         job_ids.append(job.job_id)
     
     return BatchOCRResponse(
@@ -336,7 +340,8 @@ async def extract_tables(
 
 
 @router.get("/engines")
-async def list_engines():
+async def list_e
+ngines():
     """
     List available OCR engines
     """
