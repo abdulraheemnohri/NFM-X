@@ -3,10 +3,11 @@ NFM-X Main Application
 FastAPI application entry point with all API routers.
 """
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
+from typing import Optional
 import logging
 import datetime
 
@@ -72,12 +73,18 @@ from backend.app.api.health import router as health_router
 
 # V1 API Routers
 try:
-
     from backend.app.api.memory import router as memory_router
     app.include_router(memory_router, prefix="/api/v1/memories", tags=["v1"])
     logger.info("Memory API v1 loaded")
 except ImportError as e:
     logger.warning(f"Memory API v1 not available: {e}")
+
+try:
+    from backend.app.api.context import router as context_router
+    app.include_router(context_router, prefix="/api/v1/memories", tags=["v1"])
+    logger.info("Context API v1 loaded")
+except ImportError as e:
+    logger.warning(f"Context API v1 not available: {e}")
 
 try:
     from backend.app.api.search import router as search_router
@@ -124,8 +131,7 @@ except ImportError as e:
 
 try:
     from backend.app.api.v2.graph_v2 import router as graph_v2_router
-    app.in
-clude_router(graph_v2_router, prefix="/api/v2/graph", tags=["v2"])
+    app.include_router(graph_v2_router, prefix="/api/v2/graph", tags=["v2"])
     logger.info("Graph API v2 loaded")
 except ImportError as e:
     logger.warning(f"Graph API v2 not available: {e}")
@@ -175,8 +181,7 @@ except ImportError as e:
 
 try:
     from backend.app.api.sync import router as sync_router
-    app.include_router(sy
-nc_router, prefix="/api/v3/sync", tags=["v3"])
+    app.include_router(sync_router, prefix="/api/v3/sync", tags=["v3"])
     logger.info("Sync API v3 loaded")
 except ImportError as e:
     logger.warning(f"Sync API v3 not available: {e}")
@@ -228,8 +233,7 @@ try:
     app.include_router(conflicts_router, prefix="/api/conflicts", tags=["v4"])
     logger.info("Conflicts API v4 loaded")
 except ImportError as e:
-    logger.warning(f"Conflic
-ts API v4 not available: {e}")
+    logger.warning(f"Conflicts API v4 not available: {e}")
 
 try:
     from backend.app.api.patterns import router as patterns_router

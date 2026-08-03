@@ -46,7 +46,7 @@ async def test_db_engine(test_settings):
 @pytest.fixture()
 async def db_session(test_db_engine):
     from sqlalchemy.ext.asyncio import AsyncSession
-    async with AsyncSession(test_db_engine) as session:
+    async with AsyncSession(test_db_engine, expire_on_commit=False) as session:
         yield session
         await session.rollback()
 

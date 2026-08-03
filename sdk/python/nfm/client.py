@@ -92,11 +92,11 @@ class NFMClient:
             metadata=metadata or {},
         )
         
-        response = await self._request("POST", "/api/memories", json=payload.model_dump())
+        response = await self._request("POST", "/api/v1/memories/", json=payload.model_dump())
         return Memory.model_validate(response.json())
     
     async def get_memory(self, memory_id: str) -> Memory:
-        response = await self._request("GET", f"/api/memories/{memory_id}")
+        response = await self._request("GET", f"/api/v1/memories/{memory_id}")
         return Memory.model_validate(response.json())
     
     async def list_memories(
@@ -112,7 +112,7 @@ class NFMClient:
         if tags:
             params["tags"] = ",".join(tags)
         
-        response = await self._request("GET", "/api/memories", params=params)
+        response = await self._request("GET", "/api/v1/memories/", params=params)
         return response.json()
     
     async def update_memory(
@@ -132,13 +132,13 @@ class NFMClient:
         
         response = await self._request(
             "PUT", 
-            f"/api/memories/{memory_id}", 
+            f"/api/v1/memories/{memory_id}",
             json=payload.model_dump(exclude_unset=True)
         )
         return Memory.model_validate(response.json())
     
     async def delete_memory(self, memory_id: str) -> bool:
-        await self._request("DELETE", f"/api/memories/{memory_id}")
+        await self._request("DELETE", f"/api/v1/memories/{memory_id}")
         return True
     
     async def search(
@@ -149,13 +149,11 @@ class NFMClient:
         keyword: bool = True,
     ) -> SearchResponse:
         params = {
-            "q": query,
+            "query": query,
             "limit": limit,
-            "semantic": semantic,
-            "keyword": keyword,
         }
         
-        response = await self._request("GET", "/api/search", params=params)
+        response = await self._request("GET", "/api/v1/search/", params=params)
         return SearchResponse.model_validate(response.json())
     
     async def build_context(
@@ -164,17 +162,17 @@ class NFMClient:
         limit: int = 5,
         max_tokens: int = 2000,
     ) -> Context:
-        params = {
+        payload = {
             "query": query,
-            "limit": limit,
+            "max_memories": limit,
             "max_tokens": max_tokens,
         }
         
-        response = await self._request("GET", "/api/context", params=params)
+        response = await self._request("POST", "/api/v1/memories/context", json=payload)
         return Context.model_validate(response.json())
     
     async def get_stats(self) -> MemoryStats:
-        response = await self._request("GET", "/api/stats")
+        response = await self._request("GET", "/api/v1/stats/")
         return MemoryStats.model_validate(response.json())
     
     async def list_conflicts(
@@ -187,19 +185,19 @@ class NFMClient:
         if resolved is not None:
             params["resolved"] = resolved
         
-        response = await self._request("GET", "/api/conflicts", params=params)
+        response = await self._request("GET", "/api/v1/conflicts/", params=params)
         return response.json()
     
     async def detect_conflicts(self) -> Dict[str, Any]:
-        response = await self._request("POST", "/api/conflicts/detect")
+        response = await self._request("POST", "/api/v1/conflicts/auto-resolve")
         return response.json()
     
     async def resolve_conflict(self, conflict_id: str) -> Conflict:
-        response = await self._request("POST", f"/api/conflicts/{conflict_id}/resolve")
+        response = await self._request("POST", f"/api/v1/conflicts/{conflict_id}/resolve")
         return Conflict.model_validate(response.json())
     
     async def get_graph(self) -> GraphData:
-        response = await self._request("GET", "/api/graph")
+        response = await self._request("GET", "/api/v1/graph/")
         return GraphData.model_validate(response.json())
     
     async def create_relationship(
@@ -210,17 +208,17 @@ class NFMClient:
         weight: float = 1.0,
     ) -> Dict[str, Any]:
         payload = {
-            "source_id": source_id,
-            "target_id": target_id,
-            "type": relationship_type,
-            "weight": weight,
+            "from_id": source_id,
+            "to_id": target_id,
+            "relationship_type": relationship_type,
+            "strength": weight,
         }
         
-        response = await self._request("POST", "/api/graph/relationships", json=payload)
+        response = await self._request("POST", "/api/v1/graph/relationships", json=payload)
         return response.json()
     
     async def delete_relationship(self, source_id: str, target_id: str) -> bool:
-        await self._request("DELETE", f"/api/graph/relationships/{source_id}/{target_id}")
+        await self._request("DELETE", f"/api/v1/graph/relationships/{source_id}")
         return True
     
     async def health_check(self) -> bool:

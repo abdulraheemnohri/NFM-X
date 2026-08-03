@@ -253,7 +253,7 @@ export default function PatternsPage() {
                     </Button>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    Use regex to find patterns in your memories. Example: <code className="bg-muted px-1 rounded">\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b</code> for emails.
+                    Use regex to find patterns in your memories. Example: <code className="bg-muted px-1 rounded">{"\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}\\b"}</code> for emails.
                   </p>
                 </div>
 
@@ -403,19 +403,19 @@ export default function PatternsPage() {
                     </CardHeader>
                     <CardContent className="space-y-2">
                       <div className="space-y-1">
-                        <code className="bg-muted px-2 py-1 rounded block">\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b</code>
+                        <code className="bg-muted px-2 py-1 rounded block">{"\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}\\b"}</code>
                         <p className="text-sm text-muted-foreground">Email addresses</p>
                       </div>
                       <div className="space-y-1">
-                        <code className="bg-muted px-2 py-1 rounded block">\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b</code>
+                        <code className="bg-muted px-2 py-1 rounded block">{"\\b\\d{1,2}[/-]\\d{1,2}[/-]\\d{2,4}\\b"}</code>
                         <p className="text-sm text-muted-foreground">Dates (DD/MM/YYYY or MM/DD/YYYY)</p>
                       </div>
                       <div className="space-y-1">
-                        <code className="bg-muted px-2 py-1 rounded block">\$\d{1,3}(?:,\d{3})*(?:\.\d{2})?</code>
+                        <code className="bg-muted px-2 py-1 rounded block">{"\\$\\d{1,3}(?:,\\d{3})*(?:\\.\\d{2})?"}</code>
                         <p className="text-sm text-muted-foreground">Currency amounts ($100, $1,000.50)</p>
                       </div>
                       <div className="space-y-1">
-                        <code className="bg-muted px-2 py-1 rounded block">\b\+?\d{3}[-.\s]??\d{3}[-.\s]??\d{4}\b</code>
+                        <code className="bg-muted px-2 py-1 rounded block">{"\\b\\+?\\d{3}[-.\\s]??\\d{3}[-.\\s]??\\d{4}\\b"}</code>
                         <p className="text-sm text-muted-foreground">Phone numbers</p>
                       </div>
                     </CardContent>

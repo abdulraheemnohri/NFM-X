@@ -48,8 +48,7 @@ class MemoryEvolution:
             id=new_memory_id,
             root_id=current.root_id,
             version=new_version_num,
-            type=current.type,
-            subtype=current.subtype,
+            memory_type=current.memory_type,
             content=new_content,
             normalized_content=new_content.lower().strip(),
             content_hash=content_hash,
@@ -100,41 +99,47 @@ class EvolutionEngine:
         self.contradiction_threshold = 0.70
 
     async def evolve(self, db_session: AsyncSession, new_memory: Memory) -> Dict[str, Any]:
+        new_memory_id = new_memory.id
         similar = await self._find_similar_memories(db_session, new_memory)
 
         if not similar:
-            return {"action": "NEW", "memory_id": new_memory.id, "details": {}}
+            return {"action": "NEW", "memory_id": new_memory_id, "details": {}}
 
         best_match = similar[0]
+        best_match_id = best_match.id
         relationship = self._analyze_relationship(new_memory, best_match)
 
         if relationship == "DUPLICATE":
             await self._mark_duplicate(db_session, new_memory, best_match)
-            return {"action": "DUPLICATE", "memory_id": best_match.id, "details": {}}
+            return {"action": "DUPLICATE", "memory_id": best_match_id, "details": {}}
 
         elif relationship == "REINFORCE":
             updated = await self._reinforce_memory(db_session, best_match, new_memory)
-            return {"action": "REINFORCE", "memory_id": updated.id, "details": {}}
+            updated_id = updated.id
+            return {"action": "REINFORCE", "memory_id": updated_id, "details": {}}
 
         elif relationship == "CONTRADICT":
             conflict = await self._create_contradiction(db_session, best_match, new_memory)
-            return {"action": "CONTRADICT", "memory_id": new_memory.id, "details": {"conflict_id": conflict.id}}
+            conflict_id = conflict.id
+            return {"action": "CONTRADICT", "memory_id": new_memory_id, "details": {"conflict_id": conflict_id}}
 
         elif relationship == "REFINE":
             version = await self._create_refined_version(db_session, best_match, new_memory)
-            return {"action": "REFINE", "memory_id": version.id, "details": {}}
+            version_id = version.id
+            return {"action": "REFINE", "memory_id": version_id, "details": {}}
 
         elif relationship == "EXPAND":
             version = await self._create_expanded_version(db_session, best_match, new_memory)
-            return {"action": "EXPAND", "memory_id": version.id, "details": {}}
+            version_id = version.id
+            return {"action": "EXPAND", "memory_id": version_id, "details": {}}
 
         else:
             await self._create_relationship(db_session, new_memory, best_match, "related")
-            return {"action": "NEW_RELATED", "memory_id": new_memory.id, "details": {}}
+            return {"action": "NEW_RELATED", "memory_id": new_memory_id, "details": {}}
 
     async def _find_similar_memories(self, db_session: AsyncSession, new_memory: Memory, limit: int = 5) -> List[Memory]:
         stmt = select(Memory).where(
-            Memory.type == new_memory.type,
+            Memory.memory_type == new_memory.memory_type,
             Memory.agent_id == new_memory.agent_id,
             Memory.status == MemoryStatus.ACTIVE,
             Memory.id != new_memory.id
@@ -145,10 +150,14 @@ class EvolutionEngine:
         if not candidates:
             return []
 
-        new_embedding = self.embedding_model.embed(new_memory.content)
+        new_embedding = new_memory.embedding
+        if new_embedding is None:
+            new_embedding = self.embedding_model.encode_single(new_memory.content)
         scored = []
         for mem in candidates:
-            mem_embedding = self.embedding_model.embed(mem.content)
+            mem_embedding = mem.embedding
+            if mem_embedding is None:
+                mem_embedding = self.embedding_model.encode_single(mem.content)
             similarity = self._cosine_similarity(new_embedding, mem_embedding)
             scored.append((mem, similarity))
 
@@ -159,8 +168,12 @@ class EvolutionEngine:
         if self._is_near_duplicate(new_mem.content, existing.content):
             return "DUPLICATE"
 
-        new_emb = self.embedding_model.embed(new_mem.content)
-        exist_emb = self.embedding_model.embed(existing.content)
+        new_emb = new_mem.embedding
+        if new_emb is None:
+            new_emb = self.embedding_model.encode_single(new_mem.content)
+        exist_emb = existing.embedding
+        if exist_emb is None:
+            exist_emb = self.embedding_model.encode_single(existing.content)
         similarity = self._cosine_similarity(new_emb, exist_emb)
 
         if similarity >= self.reinforce_threshold:
@@ -249,8 +262,8 @@ class EvolutionEngine:
         existing.importance = max(existing.importance, new_evidence.importance)
         event = MemoryEvent(
             id=str(uuid.uuid4()), memory_id=existing.id, event_type="reinforce",
-            details={"previous_confidence": old_conf, "new_confidence": existing.confidence, "evidence_memory_id": new_evidence.id},
-            timestamp=datetime.now(timezone.utc), agent_id=new_evidence.agent_id or "system"
+            details={"previous_confidence": old_conf, "new_confidence": existing.confidence, "evidence_memory_id": new_evidence.id, "agent_id": new_evidence.agent_id or "system"},
+            timestamp=datetime.now(timezone.utc)
         )
         db_session.add(event)
         await db_session.commit()
@@ -280,7 +293,7 @@ class EvolutionEngine:
             id=str(uuid.uuid4()), memory_a_id=existing.id, memory_b_id=new_memory.id,
             conflict_type="value_mismatch",
             description=f"Contradiction: '{existing.content[:100]}' vs '{new_memory.content[:100]}'",
-            severity=0.8, status="unresolved"
+            metadata={"severity": 0.8, "status": "unresolved"}
         )
         db_session.add(conflict)
         event_a = MemoryEvent(id=str(uuid.uuid4()), memory_id=existing.id, event_type="contradicted",
@@ -301,7 +314,18 @@ class EvolutionEngine:
         await db_session.commit()
 
     async def _create_relationship(self, db_session, source, target, rel_type):
-        rel = MemoryRelationship(id=str(uuid.uuid4()), memory_id=source.id, related_id=target.id,
-            relationship_type=rel_type, confidence=0.7)
+        from ..memory.models import RelationshipType
+        try:
+            rel_enum = RelationshipType(rel_type.upper())
+        except ValueError:
+            rel_enum = RelationshipType.RELATED_TO
+
+        rel = MemoryRelationship(
+            id=str(uuid.uuid4()),
+            from_id=source.id,
+            to_id=target.id,
+            relationship_type=rel_enum,
+            strength=0.7
+        )
         db_session.add(rel)
         await db_session.commit()

@@ -10,7 +10,7 @@ from ..memory.models import Memory
 from ..retrieval.engine import RetrievalEngine
 from ..storage.database import get_db
 
-router = APIRouter(prefix="/memory", tags=["Context"])
+router = APIRouter(prefix="", tags=["Context"])
 
 
 class ContextRequest(BaseModel):

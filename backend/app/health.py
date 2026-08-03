@@ -79,7 +79,7 @@ class HealthChecker:
     """Performs comprehensive health checks"""
     
     def __init__(self):
-        self._start_time = datetime.now(timezone.utc))
+        self._start_time = datetime.now(timezone.utc)
         self._last_check: Optional[datetime] = None
     
     async def check_all(self, timeout_seconds: int = 5) -> HealthCheckResult:
@@ -111,7 +111,7 @@ class HealthChecker:
         
         # Calculate overall status
         status = self._calculate_overall_status(subsystems)
-        uptime = (datetime.now(timezone.utc)) - self._start_time).total_seconds()
+        uptime = (datetime.now(timezone.utc) - self._start_time).total_seconds()
         
         result = HealthCheckResult(
             status=status,
@@ -121,7 +121,7 @@ class HealthChecker:
             environment=config.environment
         )
         
-        self._last_check = datetime.now(timezone.utc))
+        self._last_check = datetime.now(timezone.utc)
         return result
     
     async def _check_database(self, timeout: int) -> SubsystemStatus:
@@ -130,7 +130,7 @@ class HealthChecker:
         config = get_config()
         
         try:
-            start = datetime.now(timezone.utc))
+            start = datetime.now(timezone.utc)
             
             # Try to connect to database
             if config.database_url.startswith("sqlite"):
@@ -158,12 +158,12 @@ class HealthChecker:
                     timeout=timeout
                 )
             
-            latency = (datetime.now(timezone.utc)) - start).total_seconds() * 1000
+            latency = (datetime.now(timezone.utc) - start).total_seconds() * 1000
             return SubsystemStatus(
                 name="database",
                 healthy=True,
                 latency_ms=latency,
-                last_check=datetime.now(timezone.utc)),
+                last_check=datetime.now(timezone.utc),
                 details={"url": config.database_url}
             )
         except Exception as e:
@@ -171,7 +171,7 @@ class HealthChecker:
                 name="database",
                 healthy=False,
                 error=str(e),
-                last_check=datetime.now(timezone.utc))
+                last_check=datetime.now(timezone.utc)
             )
     
     async def _test_sqlite_connection(self, url: str):
@@ -197,7 +197,7 @@ class HealthChecker:
         config = get_config()
         
         try:
-            start = datetime.now(timezone.utc))
+            start = datetime.now(timezone.utc)
             
             # Check if vector store directory exists
             if config.vector_store_dir and not os.path.exists(config.vector_store_dir):
@@ -213,15 +213,15 @@ class HealthChecker:
                     name="vector_store",
                     healthy=False,
                     error="FAISS not installed",
-                    last_check=datetime.now(timezone.utc))
+                    last_check=datetime.now(timezone.utc)
                 )
             
-            latency = (datetime.now(timezone.utc)) - start).total_seconds() * 1000
+            latency = (datetime.now(timezone.utc) - start).total_seconds() * 1000
             return SubsystemStatus(
                 name="vector_store",
                 healthy=True,
                 latency_ms=latency,
-                last_check=datetime.now(timezone.utc)),
+                last_check=datetime.now(timezone.utc),
                 details={"directory": config.vector_store_dir}
             )
         except Exception as e:
@@ -229,7 +229,7 @@ class HealthChecker:
                 name="vector_store",
                 healthy=False,
                 error=str(e),
-                last_check=datetime.now(timezone.utc))
+                last_check=datetime.now(timezone.utc)
             )
     
     async def _check_ocr(self, timeout: int) -> SubsystemStatus:
@@ -237,14 +237,14 @@ class HealthChecker:
         config = get_config()
         
         try:
-            start = datetime.now(timezone.utc))
+            start = datetime.now(timezone.utc)
             
             if not config.ocr.enabled:
                 return SubsystemStatus(
                     name="ocr",
                     healthy=True,
                     latency_ms=0,
-                    last_check=datetime.now(timezone.utc)),
+                    last_check=datetime.now(timezone.utc),
                     details={"enabled": False, "engine": config.ocr.engine}
                 )
             
@@ -259,7 +259,7 @@ class HealthChecker:
                         name="ocr",
                         healthy=False,
                         error="EasyOCR not installed",
-                        last_check=datetime.now(timezone.utc))
+                        last_check=datetime.now(timezone.utc)
                     )
             elif config.ocr.engine == "tesseract":
                 try:
@@ -271,7 +271,7 @@ class HealthChecker:
                         name="ocr",
                         healthy=False,
                         error="Tesseract not installed",
-                        last_check=datetime.now(timezone.utc))
+                        last_check=datetime.now(timezone.utc)
                     )
             elif config.ocr.engine in ["azure", "google"]:
                 if not config.ocr.cloud_api_key:
@@ -279,15 +279,15 @@ class HealthChecker:
                         name="ocr",
                         healthy=False,
                         error="Cloud API key not configured",
-                        last_check=datetime.now(timezone.utc))
+                        last_check=datetime.now(timezone.utc)
                     )
             
-            latency = (datetime.now(timezone.utc)) - start).total_seconds() * 1000
+            latency = (datetime.now(timezone.utc) - start).total_seconds() * 1000
             return SubsystemStatus(
                 name="ocr",
                 healthy=True,
                 latency_ms=latency,
-                last_check=datetime.now(timezone.utc)),
+                last_check=datetime.now(timezone.utc),
                 details={
                     "engine": config.ocr.engine,
                     "languages": config.ocr.languages,
@@ -299,7 +299,7 @@ class HealthChecker:
                 name="ocr",
                 healthy=False,
                 error=str(e),
-                last_check=datetime.now(timezone.utc))
+                last_check=datetime.now(timezone.utc)
             )
     
     async def _check_storage(self, timeout: int) -> SubsystemStatus:
@@ -307,7 +307,7 @@ class HealthChecker:
         config = get_config()
         
         try:
-            start = datetime.now(timezone.utc))
+            start = datetime.now(timezone.utc)
             
             # Check if storage directory exists
             if config.storage_dir and not os.path.exists(config.storage_dir):
@@ -324,12 +324,12 @@ class HealthChecker:
                 total_space_mb = 0
                 used_percent = 0
             
-            latency = (datetime.now(timezone.utc)) - start).total_seconds() * 1000
+            latency = (datetime.now(timezone.utc) - start).total_seconds() * 1000
             return SubsystemStatus(
                 name="storage",
                 healthy=used_percent < 90,  # Healthy if less than 90% used
                 latency_ms=latency,
-                last_check=datetime.now(timezone.utc)),
+                last_check=datetime.now(timezone.utc),
                 details={
                     "directory": config.storage_dir,
                     "free_space_mb": round(free_space_mb, 2),
@@ -342,7 +342,7 @@ class HealthChecker:
                 name="storage",
                 healthy=False,
                 error=str(e),
-                last_check=datetime.now(timezone.utc))
+                last_check=datetime.now(timezone.utc)
             )
     
     def _calculate_overall_status(self, subsystems: List[SubsystemStatus]) -> str:
@@ -366,4 +366,4 @@ class HealthChecker:
     
     def get_uptime(self) -> float:
         """Get uptime in seconds"""
-        return (datetime.now(timezone.utc)) - self._start_time).total_seconds()
+        return (datetime.now(timezone.utc) - self._start_time).total_seconds()

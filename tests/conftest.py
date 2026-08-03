@@ -73,7 +73,7 @@ async def async_test_client():
 async def db_session():
     from backend.app.storage.database import engine
     
-    async with AsyncSession(engine) as session:
+    async with AsyncSession(engine, expire_on_commit=False) as session:
         yield session
         await session.rollback()
 

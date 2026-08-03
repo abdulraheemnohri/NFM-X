@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_, and_, desc
 
-    import time
+import time
 from ..memory.models import Memory, MemoryStatus, MemoryType
 from ..retrieval.engine import RetrievalEngine
 from ..storage.database import get_db
@@ -75,8 +75,7 @@ async def keyword_search(
         ))
     
     if filters:
-        search_query = search_query.where(and
-_(*filters))
+        search_query = search_query.where(and_(*filters))
     
     search_query = search_query.order_by(desc(Memory.relevance_score), desc(Memory.access_count)).limit(limit)
     result = await db.execute(search_query)
@@ -138,8 +137,7 @@ async def semantic_search(
             title=memory.title,
             content_preview=content_preview,
             memory_type=memory.memory_type,
-            stat
-us=memory.status,
+            status=memory.status,
             relevance_score=score,
             tags=memory.tags or [],
             categories=memory.categories or [],
@@ -204,8 +202,7 @@ async def hybrid_search(
 
 
 @router.get("/{memory_id}/similar", response_model=SearchResponse)
-async def find_similar(memory_id: str, 
-limit: int = 10, db: AsyncSession = Depends(get_db)) -> SearchResponse:
+async def find_similar(memory_id: str, limit: int = 10, db: AsyncSession = Depends(get_db)) -> SearchResponse:
     import time
     start_time = time.time()
     

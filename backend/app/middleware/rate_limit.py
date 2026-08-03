@@ -18,10 +18,18 @@ class RateLimiter:
     """Rate limiter with Redis support for distributed environments"""
     
     def __init__(self):
-        self.enabled = getattr(settings, 'rate_limit', {}).get('enabled', False)
-        self.requests_per_minute = getattr(settings, 'rate_limit', {}).get('requests_per_minute', 100)
-        self.burst_requests = getattr(settings, 'rate_limit', {}).get('burst_requests', 10)
-        self.whitelist = set(getattr(settings, 'rate_limit', {}).get('whitelist', []))
+        rate_limit_setting = getattr(settings, 'rate_limit', None)
+        if rate_limit_setting is not None and not isinstance(rate_limit_setting, dict):
+            self.enabled = getattr(rate_limit_setting, 'enabled', False)
+            self.requests_per_minute = getattr(rate_limit_setting, 'requests_per_minute', 100)
+            self.burst_requests = getattr(rate_limit_setting, 'burst_requests', 10)
+            self.whitelist = set(getattr(rate_limit_setting, 'whitelist', []))
+        else:
+            rate_limit_dict = rate_limit_setting or {}
+            self.enabled = rate_limit_dict.get('enabled', False)
+            self.requests_per_minute = rate_limit_dict.get('requests_per_minute', 100)
+            self.burst_requests = rate_limit_dict.get('burst_requests', 10)
+            self.whitelist = set(rate_limit_dict.get('whitelist', []))
         
         # Try to use Redis if available
         self.redis_client = None
@@ -112,6 +120,16 @@ class RateLimiter:
 
 # Global rate limiter instance
 rate_limiter = RateLimiter()
+
+
+def init_rate_limiter():
+    global rate_limiter
+    rate_limiter = RateLimiter()
+    return rate_limiter
+
+
+def get_rate_limiter():
+    return rate_limiter
 
 
 async def rate_limit_middleware(request: Request, call_next):

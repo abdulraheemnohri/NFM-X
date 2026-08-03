@@ -130,9 +130,23 @@ async def get_stats(db: AsyncSession = Depends(get_db)) -> SystemStats:
 
 @router.get("/memory")
 async def get_memory_stats(db: AsyncSession = Depends(get_db)):
+    is_postgres = settings.database_url.startswith("postgresql") if settings.database_url else False
+
+    if is_postgres:
+        from sqlalchemy import Date
+        date_expr = func.to_char(Memory.created_at, 'YYYY-MM-DD').label('date')
+        week_expr = func.to_char(Memory.created_at, 'YYYY-IW').label('week')
+        month_expr = func.to_char(Memory.created_at, 'YYYY-MM').label('month')
+        update_date_expr = func.cast(Memory.updated_at, Date).label('date')
+    else:
+        date_expr = func.strftime('%Y-%m-%d', Memory.created_at).label('date')
+        week_expr = func.strftime('%Y-%W', Memory.created_at).label('week')
+        month_expr = func.strftime('%Y-%m', Memory.created_at).label('month')
+        update_date_expr = func.date(Memory.updated_at).label('date')
+
     result = await db.execute(
         select(
-            func.strftime('%Y-%m-%d', Memory.created_at).label('date'),
+            date_expr,
             func.count(Memory.id).label('count')
         )
         .group_by('date')
@@ -142,7 +156,7 @@ async def get_memory_stats(db: AsyncSession = Depends(get_db)):
     
     result = await db.execute(
         select(
-            func.strftime('%Y-%W', Memory.created_at).label('week'),
+            week_expr,
             func.count(Memory.id).label('count')
         )
         .group_by('week')
@@ -152,7 +166,7 @@ async def get_memory_stats(db: AsyncSession = Depends(get_db)):
     
     result = await db.execute(
         select(
-            func.strftime('%Y-%m', Memory.created_at).label('month'),
+            month_expr,
             func.count(Memory.id).label('count')
         )
         .group_by('month')
@@ -162,7 +176,7 @@ async def get_memory_stats(db: AsyncSession = Depends(get_db)):
     
     result = await db.execute(
         select(
-            func.date(Memory.updated_at).label('date'),
+            update_date_expr,
             func.sum(Memory.access_count).label('accesses')
         )
         .group_by('date')
