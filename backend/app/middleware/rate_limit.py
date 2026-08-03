@@ -1,185 +1,146 @@
 """
-NFM-X V4 Rate Limiting Middleware
-Optional rate limiting for API endpoints
+NFM-X Rate Limiting Middleware
+Redis-based rate limiting for distributed environments
 """
 
-from typing import Callable, Awaitable, Optional, List
 from fastapi import Request, HTTPException, status
-from fastapi.responses import JSONResponse
-import time
+from typing import Optional
 import logging
-from collections import defaultdict
+from datetime import datetime, timezone
+import os
 
-from backend.app.config import get_config
+from backend.app.config import settings
 
 logger = logging.getLogger(__name__)
 
 
 class RateLimiter:
-    """
-    Token bucket rate limiter
-    """
+    """Rate limiter with Redis support for distributed environments"""
     
-    def __init__(self, requests_per_minute: int, burst_requests: int):
-        self.requests_per_minute = requests_per_minute
-        self.burst_requests = burst_requests
-        self.buckets: dict = defaultdict(lambda: {"tokens": burst_requests, "last_refill": time.time()})
-        self.whitelist: set = set()
+    def __init__(self):
+        self.enabled = getattr(settings, 'rate_limit', {}).get('enabled', False)
+        self.requests_per_minute = getattr(settings, 'rate_limit', {}).get('requests_per_minute', 100)
+        self.burst_requests = getattr(settings, 'rate_limit', {}).get('burst_requests', 10)
+        self.whitelist = set(getattr(settings, 'rate_limit', {}).get('whitelist', []))
+        
+        # Try to use Redis if available
+        self.redis_client = None
+        try:
+            import redis
+            redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+            self.redis_client = redis.from_url(redis_url, decode_responses=True)
+            self.redis_client.ping()
+            logger.info("Using Redis for rate limiting")
+        except Exception as e:
+            logger.warning(f"Redis not available: {e}, using in-memory rate limiting")
+            self.memory_store = {}
     
-    def add_to_whitelist(self, ip: str) -> None:
-        """Add IP to whitelist"""
-        self.whitelist.add(ip)
-    
-    def remove_from_whitelist(self, ip: str) -> None:
-        """Remove IP from whitelist"""
-        self.whitelist.discard(ip)
-    
-    def is_whitelisted(self, ip: str) -> bool:
-        """Check if IP is whitelisted"""
-        return ip in self.whitelist
-    
-    def allow_request(self, ip: str) -> bool:
-        """
-        Check if a request from the given IP should be allowed
-        Uses token bucket algorithm
-        """
-        if self.is_whitelisted(ip):
+    async def check_rate_limit(self, client_ip: str, endpoint: str) -> bool:
+        """Check if the client has exceeded rate limits"""
+        if not self.enabled:
             return True
         
-        bucket = self.buckets[ip]
-        current_time = time.time()
-        
-        # Refill tokens based on time elapsed
-        time_elapsed = current_time - bucket["last_refill"]
-        tokens_to_add = time_elapsed * (self.requests_per_minute / 60)
-        
-        bucket["tokens"] = min(self.burst_requests, bucket["tokens"] + tokens_to_add)
-        bucket["last_refill"] = current_time
-        
-        # Check if we have tokens available
-        if bucket["tokens"] >= 1:
-            bucket["tokens"] -= 1
+        if client_ip in self.whitelist:
             return True
         
-        return False
-    
-    def get_remaining_requests(self, ip: str) -> int:
-        """Get remaining requests for an IP"""
-        if self.is_whitelisted(ip):
-            return float("inf")
+        key = f"rate_limit:{client_ip}:{endpoint}"
         
-        bucket = self.buckets[ip]
-        current_time = time.time()
-        
-        # Refill tokens based on time elapsed
-        time_elapsed = current_time - bucket["last_refill"]
-        tokens_to_add = time_elapsed * (self.requests_per_minute / 60)
-        
-        current_tokens = min(self.burst_requests, bucket["tokens"] + tokens_to_add)
-        return int(current_tokens)
-    
-    def reset(self, ip: Optional[str] = None) -> None:
-        """Reset rate limit counters"""
-        if ip:
-            self.buckets[ip] = {"tokens": self.burst_requests, "last_refill": time.time()}
+        if self.redis_client:
+            return await self._check_redis_rate_limit(key)
         else:
-            for ip_address in self.buckets:
-                self.buckets[ip_address] = {"tokens": self.burst_requests, "last_refill": time.time()}
+            return self._check_memory_rate_limit(key)
+    
+    async def _check_redis_rate_limit(self, key: str) -> bool:
+        """Check rate limit using Redis"""
+        try:
+            current = await self.redis_client.get(key)
+            if current and int(current) >= self.requests_per_minute:
+                return False
+            
+            pipe = self.redis_client.pipeline()
+            pipe.incr(key)
+            pipe.expire(key, 60)  # 1 minute window
+            await pipe.execute()
+            return True
+        except Exception as e:
+            logger.error(f"Redis rate limit check failed: {e}")
+            return True  # Fail open
+    
+    def _check_memory_rate_limit(self, key: str) -> bool:
+        """Check rate limit using in-memory store (per-worker)"""
+        now = datetime.now(timezone.utc).timestamp()
+        window_start = now - 60  # 1 minute window
+        
+        if key not in self.memory_store:
+            self.memory_store[key] = []
+        
+        # Remove old requests
+        self.memory_store[key] = [
+            t for t in self.memory_store[key] 
+            if t > window_start
+        ]
+        
+        # Check if limit exceeded
+        if len(self.memory_store[key]) >= self.requests_per_minute:
+            return False
+        
+        # Add current request
+        self.memory_store[key].append(now)
+        return True
+    
+    async def get_remaining_requests(self, client_ip: str, endpoint: str) -> int:
+        """Get remaining requests for a client"""
+        if not self.enabled:
+            return float('inf')
+        
+        if client_ip in self.whitelist:
+            return float('inf')
+        
+        key = f"rate_limit:{client_ip}:{endpoint}"
+        
+        if self.redis_client:
+            try:
+                current = await self.redis_client.get(key)
+                return max(0, self.requests_per_minute - (int(current) if current else 0))
+            except Exception:
+                return self.requests_per_minute
+        else:
+            if key in self.memory_store:
+                return max(0, self.requests_per_minute - len(self.memory_store[key]))
+            return self.requests_per_minute
 
 
 # Global rate limiter instance
-rate_limiter: Optional[RateLimiter] = None
+rate_limiter = RateLimiter()
 
 
-def init_rate_limiter() -> Optional[RateLimiter]:
-    """
-    Initialize rate limiter from configuration
-    """
-    global rate_limiter
-    config = get_config()
+async def rate_limit_middleware(request: Request, call_next):
+    """Rate limiting middleware for FastAPI"""
+    if not rate_limiter.enabled:
+        return await call_next(request)
     
-    if not config.rate_limit.enabled:
-        logger.info("Rate limiting is disabled")
-        return None
+    client_ip = request.client.host if request.client else "unknown"
+    endpoint = request.url.path
     
-    rate_limiter = RateLimiter(
-        requests_per_minute=config.rate_limit.requests_per_minute,
-        burst_requests=config.rate_limit.burst_requests
-    )
-    
-    # Add whitelisted IPs
-    for ip in config.rate_limit.whitelist:
-        rate_limiter.add_to_whitelist(ip)
-    
-    logger.info(f"Rate limiting enabled: {config.rate_limit.requests_per_minute} req/min, burst: {config.rate_limit.burst_requests}")
-    return rate_limiter
-
-
-def get_client_ip(request: Request) -> str:
-    """
-    Get client IP address from request
-    """
-    # Try to get IP from X-Forwarded-For header (for proxies)
-    forwarded_for = request.headers.get("X-Forwarded-For")
-    if forwarded_for:
-        # X-Forwarded-For can contain multiple IPs, take the first one
-        return forwarded_for.split(",")[0].strip()
-    
-    # Try X-Real-IP
-    real_ip = request.headers.get("X-Real-IP")
-    if real_ip:
-        return real_ip.strip()
-    
-    # Fall back to client host
-    return request.client.host
-
-
-def rate_limit_middleware(request: Request, call_next: Callable[[Request], Awaitable]) -> Awaitable:
-    """
-    FastAPI middleware for rate limiting
-    """
-    global rate_limiter
-    
-    # Initialize rate limiter if not already done
-    if rate_limiter is None:
-        rate_limiter = init_rate_limiter()
-    
-    # If rate limiting is disabled, just pass through
-    if rate_limiter is None:
-        return call_next(request)
-    
-    # Get client IP
-    client_ip = get_client_ip(request)
-    
-    # Check rate limit
-    if not rate_limiter.allow_request(client_ip):
-        remaining = rate_limiter.get_remaining_requests(client_ip)
-        logger.warning(f"Rate limit exceeded for IP: {client_ip}")
+    if not await rate_limiter.check_rate_limit(client_ip, endpoint):
+        remaining = await rate_limiter.get_remaining_requests(client_ip, endpoint)
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail={
-                "error": "Too many requests",
-                "message": "Rate limit exceeded",
+                "error": "Rate limit exceeded",
+                "message": f"You have exceeded the rate limit of {rate_limiter.requests_per_minute} requests per minute",
                 "retry_after": 60,
-                "remaining_requests": remaining
+                "limit": rate_limiter.requests_per_minute,
+                "remaining": 0
             }
         )
     
-    # Add rate limit headers to response
     response = await call_next(request)
-    remaining = rate_limiter.get_remaining_requests(client_ip)
+    remaining = await rate_limiter.get_remaining_requests(client_ip, endpoint)
     
-    # Add headers to response
+    # Add rate limit headers
     response.headers["X-RateLimit-Limit"] = str(rate_limiter.requests_per_minute)
     response.headers["X-RateLimit-Remaining"] = str(remaining)
-    response.headers["X-RateLimit-Reset"] = str(int(time.time() + 60))
+    response.headers["X-RateLimit-Reset"] = str(int(datetime.now(timezone.utc).timestamp()) + 60)
     
     return response
-
-
-def get_rate_limiter() -> Optional[RateLimiter]:
-    """Get the rate limiter instance"""
-    global rate_limiter
-    if rate_limiter is None:
-        rate_limiter = init_rate_limiter()
-    return rate_limiter
