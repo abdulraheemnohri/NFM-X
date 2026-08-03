@@ -1,133 +1,377 @@
 """
-NFM-X Conflicts API
+NFM-X Conflict Resolution API
+Handles sync conflicts with automatic and manual resolution strategies.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
-from typing import List, Optional
-from pydantic import BaseModel
+
+from fastapi import APIRouter, HTTPException, Depends, status
+from pydantic import BaseModel, Field
+from typing import List, Optional, Dict, Any
 from datetime import datetime
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from enum import Enum
 
-from ..memory.models import Memory, MemoryStatus
-from ..memory.conflicts import ConflictDetector, ConflictType, ConflictStatus
-from ..storage.database import get_db
+from backend.app.database import get_db_connection
+from backend.app.models.conflict import Conflict, ConflictResolution
 
-router = APIRouter(prefix="/conflicts", tags=["Conflicts"])
+router = APIRouter(prefix="/api/v1/conflicts", tags=["conflicts"])
 
 
-class ConflictResponse(BaseModel):
-    id: str
-    memory_a_id: str
-    memory_b_id: str
-    conflict_type: str
-    status: str
-    description: Optional[str]
-    detected_at: datetime
-    resolved_at: Optional[datetime]
-    resolution: Optional[str]
-    resolution_notes: Optional[str]
-    
-    class Config:
-        from_attributes = True
+class ConflictStatus(str, Enum):
+    PENDING = "pending"
+    RESOLVED = "resolved"
+    DISMISSED = "dismissed"
+
+
+class ConflictType(str, Enum):
+    CONTENT = "content"
+    METADATA = "metadata"
+    DELETION = "deletion"
+
+
+class ResolutionStrategy(str, Enum):
+    KEEP_BOTH = "keep_both"
+    KEEP_LOCAL = "keep_local"
+    KEEP_REMOTE = "keep_remote"
+    MERGE = "merge"
+    LATEST = "latest"
+
+
+class ConflictBase(BaseModel):
+    memory_id: str
+    local_content: str
+    remote_content: str
+    local_metadata: Dict[str, Any] = Field(default_factory=dict)
+    remote_metadata: Dict[str, Any] = Field(default_factory=dict)
+    conflict_type: ConflictType
+    detected_at: datetime = Field(default_factory=datetime.utcnow)
+    status: ConflictStatus = ConflictStatus.PENDING
+
+
+class ConflictCreate(ConflictBase):
+    pass
+
+
+class ConflictUpdate(BaseModel):
+    status: Optional[ConflictStatus] = None
+    resolution: Optional[ResolutionStrategy] = None
+    resolved_at: Optional[datetime] = None
+    resolved_by: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class ConflictResponse(ConflictBase):
+    id: int
+    resolution: Optional[ResolutionStrategy] = None
+    resolved_at: Optional[datetime] = None
+    resolved_by: Optional[str] = None
+    notes: Optional[str] = None
+    created_at: datetime
 
 
 class ConflictListResponse(BaseModel):
-    conflicts: List[ConflictResponse]
-    total: int
-    new_count: int
-    resolved_count: int
+    id: int
+    memory_id: str
+    conflict_type: ConflictType
+    status: ConflictStatus
+    detected_at: datetime
+    created_at: datetime
 
 
-class ConflictResolveRequest(BaseModel):
-    resolution: str
-    resolution_notes: Optional[str] = None
+class AutoResolveRequest(BaseModel):
+    strategy: ResolutionStrategy
+    dry_run: bool = False
 
 
-@router.get("/", response_model=ConflictListResponse)
+class BulkResolveRequest(BaseModel):
+    strategy: ResolutionStrategy
+    conflict_ids: List[int]
+    dry_run: bool = False
+
+
+@router.get("/", response_model=List[ConflictListResponse])
 async def list_conflicts(
-    status: Optional[str] = None,
-    conflict_type: Optional[str] = None,
+    status_filter: Optional[ConflictStatus] = None,
     limit: int = 100,
-    offset: int = 0,
-    db: AsyncSession = Depends(get_db)
-) -> ConflictListResponse:
-    result = await db.execute(
-        select(Memory).where(Memory.metadata["is_conflict"].as_boolean() == True)
-    )
-    conflict_memories = result.scalars().all()
+    offset: int = 0
+):
+    """List all conflicts with optional filtering."""
+    db = await get_db_connection()
+    query = "SELECT id, memory_id, conflict_type, status, detected_at, created_at FROM conflicts"
+    params = []
+    
+    if status_filter:
+        query += " WHERE status = ?"
+        params.append(status_filter.value)
+    
+    query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
+    
+    async with db.execute(query, params) as cursor:
+        rows = await cursor.fetchall()
     
     conflicts = []
-    for mem in conflict_memories:
-        metadata = mem.metadata or {}
-        if metadata.get("is_conflict"):
-            if status and metadata.get("status") != status:
-                continue
-            if conflict_type and metadata.get("conflict_type") != conflict_type:
-                continue
-            conflicts.append(ConflictResponse(
-                id=metadata.get("conflict_id", mem.id),
-                memory_a_id=metadata.get("memory_a_id", ""),
-                memory_b_id=metadata.get("memory_b_id", ""),
-                conflict_type=metadata.get("conflict_type", "unknown"),
-                status=metadata.get("status", "detected"),
-                description=mem.content,
-                detected_at=mem.created_at,
-                resolved_at=datetime.fromisoformat(metadata.get("resolved_at")) if metadata.get("resolved_at") else None,
-                resolution=metadata.get("resolution"),
-                resolution_notes=metadata.get("resolution_notes")
-            ))
+    for row in rows:
+        conflicts.append(ConflictListResponse(
+            id=row[0],
+            memory_id=row[1],
+            conflict_type=ConflictType(row[2]),
+            status=ConflictStatus(row[3]),
+            detected_at=datetime.fromisoformat(row[4]),
+            created_at=datetime.fromisoformat(row[5])
+        ))
     
-    return ConflictListResponse(
-        conflicts=conflicts[offset:offset+limit],
-        total=len(conflicts),
-        new_count=len([c for c in conflicts if c.status == "detected"]),
-        resolved_count=len([c for c in conflicts if c.status == "resolved"])
-    )
+    return conflicts
 
 
 @router.get("/{conflict_id}", response_model=ConflictResponse)
-async def get_conflict(conflict_id: str, db: AsyncSession = Depends(get_db)) -> ConflictResponse:
-    detector = ConflictDetector()
-    conflict = await detector.get_conflict(db, conflict_id)
-    if not conflict:
-        raise HTTPException(status_code=404, detail=f"Conflict {conflict_id} not found")
+async def get_conflict(conflict_id: int):
+    """Get details of a specific conflict."""
+    db = await get_db_connection()
+    async with db.execute(
+        "SELECT * FROM conflicts WHERE id = ?", (conflict_id,)
+    ) as cursor:
+        row = await cursor.fetchone()
+    
+    if not row:
+        raise HTTPException(status_code=404, detail="Conflict not found")
+    
     return ConflictResponse(
-        id=conflict.id,
-        memory_a_id=conflict.memory_a_id,
-        memory_b_id=conflict.memory_b_id,
-        conflict_type=conflict.conflict_type.value,
-        status=conflict.status.value,
-        description=conflict.description,
-        detected_at=conflict.detected_at,
-        resolved_at=conflict.resolved_at,
-        resolution=conflict.resolution.value if conflict.resolution else None,
-        resolution_notes=conflict.resolution_notes
+        id=row[0],
+        memory_id=row[1],
+        local_content=row[2],
+        remote_content=row[3],
+        local_metadata=row[4] or {},
+        remote_metadata=row[5] or {},
+        conflict_type=ConflictType(row[6]),
+        detected_at=datetime.fromisoformat(row[7]),
+        status=ConflictStatus(row[8]),
+        resolution=ResolutionStrategy(row[9]) if row[9] else None,
+        resolved_at=datetime.fromisoformat(row[10]) if row[10] else None,
+        resolved_by=row[11],
+        notes=row[12],
+        created_at=datetime.fromisoformat(row[13])
     )
 
 
-@router.post("/detect")
-async def detect_conflicts(
-    memory_id: Optional[str] = None,
-    limit: int = 100,
-    db: AsyncSession = Depends(get_db)
+@router.post("/", response_model=ConflictResponse, status_code=status.HTTP_201_CREATED)
+async def create_conflict(conflict: ConflictCreate):
+    """Create a new conflict record."""
+    db = await get_db_connection()
+    
+    async with db.execute(
+        """INSERT INTO conflicts (memory_id, local_content, remote_content, 
+           local_metadata, remote_metadata, conflict_type, detected_at, status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            conflict.memory_id,
+            conflict.local_content,
+            conflict.remote_content,
+            json.dumps(conflict.local_metadata),
+            json.dumps(conflict.remote_metadata),
+            conflict.conflict_type.value,
+            conflict.detected_at.isoformat(),
+            conflict.status.value
+        )
+    ) as cursor:
+        conflict_id = cursor.lastrowid
+    
+    await db.commit()
+    
+    return ConflictResponse(
+        id=conflict_id,
+        **conflict.dict(),
+        created_at=datetime.utcnow()
+    )
+
+
+@router.post("/{conflict_id}/resolve", response_model=ConflictResponse)
+async def resolve_conflict(
+    conflict_id: int,
+    resolution: ConflictUpdate
 ):
-    detector = ConflictDetector()
-    result = await detector.detect_conflicts(db_session=db, memory_id=memory_id, limit=limit)
+    """Resolve a conflict with a specific strategy."""
+    db = await get_db_connection()
+    
+    async with db.execute(
+        "SELECT * FROM conflicts WHERE id = ?", (conflict_id,)
+    ) as cursor:
+        row = await cursor.fetchone()
+    
+    if not row:
+        raise HTTPException(status_code=404, detail="Conflict not found")
+    
+    applied_resolution = resolution.resolution or ResolutionStrategy.KEEP_BOTH
+    
+    if applied_resolution == ResolutionStrategy.MERGE:
+        merged_content = self._merge_contents(row[2], row[3])
+        merged_metadata = self._merge_metadata(row[4] or {}, row[5] or {})
+    elif applied_resolution == ResolutionStrategy.KEEP_LOCAL:
+        merged_content = row[2]
+        merged_metadata = row[4] or {}
+    elif applied_resolution == ResolutionStrategy.KEEP_REMOTE:
+        merged_content = row[3]
+        merged_metadata = row[5] or {}
+    else:
+        merged_content = row[2]
+        merged_metadata = row[4] or {}
+    
+    resolved_at = resolution.resolved_at or datetime.utcnow()
+    
+    async with db.execute(
+        """UPDATE conflicts SET status = ?, resolution = ?, resolved_at = ?, 
+           resolved_by = ?, notes = ? WHERE id = ?""",
+        (
+            ConflictStatus.RESOLVED.value,
+            applied_resolution.value,
+            resolved_at.isoformat(),
+            resolution.resolved_by,
+            resolution.notes,
+            conflict_id
+        )
+    ):
+        pass
+    
+    await db.commit()
+    
+    return ConflictResponse(
+        id=row[0],
+        memory_id=row[1],
+        local_content=row[2],
+        remote_content=row[3],
+        local_metadata=row[4] or {},
+        remote_metadata=row[5] or {},
+        conflict_type=ConflictType(row[6]),
+        detected_at=datetime.fromisoformat(row[7]),
+        status=ConflictStatus.RESOLVED,
+        resolution=applied_resolution,
+        resolved_at=resolved_at,
+        resolved_by=resolution.resolved_by,
+        notes=resolution.notes,
+        created_at=datetime.fromisoformat(row[13])
+    )
+
+
+@router.post("/auto-resolve", response_model=Dict[str, Any])
+async def auto_resolve_conflicts(request: AutoResolveRequest):
+    """Auto-resolve conflicts using a specified strategy."""
+    db = await get_db_connection()
+    
+    async with db.execute(
+        "SELECT id FROM conflicts WHERE status = ?", (ConflictStatus.PENDING.value,)
+    ) as cursor:
+        rows = await cursor.fetchall()
+    
+    conflict_ids = [row[0] for row in rows]
+    resolved_count = 0
+    failed_count = 0
+    
+    if not request.dry_run:
+        for conflict_id in conflict_ids:
+            try:
+                resolution = ConflictUpdate(
+                    status=ConflictStatus.RESOLVED,
+                    resolution=request.strategy,
+                    resolved_at=datetime.utcnow(),
+                    resolved_by="auto-resolver",
+                    notes=f"Auto-resolved with {request.strategy.value} strategy"
+                )
+                await resolve_conflict(conflict_id, resolution)
+                resolved_count += 1
+            except Exception:
+                failed_count += 1
+    
     return {
-        "total": result.total_conflicts,
-        "new": result.new_conflicts,
-        "resolved": result.resolved_conflicts,
-        "conflicts": [
-            {
-                "id": c.id,
-                "type": c.conflict_type.value,
-                "status": c.status.value,
-                "memory_a": c.memory_a_id,
-                "memory_b": c.memory_b_id,
-                "description": c.description,
-                "severity": c.severity,
-                "detected_at": c.detected_at.isoformat()
-            }
-            for c in result.conflicts
-        ]
+        "total_conflicts": len(conflict_ids),
+        "resolved_count": resolved_count,
+        "failed_count": failed_count,
+        "dry_run": request.dry_run,
+        "strategy": request.strategy.value
     }
+
+
+@router.post("/bulk-resolve", response_model=Dict[str, Any])
+async def bulk_resolve_conflicts(request: BulkResolveRequest):
+    """Bulk resolve multiple conflicts."""
+    resolved_count = 0
+    failed_count = 0
+    
+    if not request.dry_run:
+        for conflict_id in request.conflict_ids:
+            try:
+                resolution = ConflictUpdate(
+                    status=ConflictStatus.RESOLVED,
+                    resolution=request.strategy,
+                    resolved_at=datetime.utcnow(),
+                    resolved_by="bulk-resolver",
+                    notes=f"Bulk resolved with {request.strategy.value} strategy"
+                )
+                await resolve_conflict(conflict_id, resolution)
+                resolved_count += 1
+            except Exception:
+                failed_count += 1
+    
+    return {
+        "total_requested": len(request.conflict_ids),
+        "resolved_count": resolved_count,
+        "failed_count": failed_count,
+        "dry_run": request.dry_run,
+        "strategy": request.strategy.value
+    }
+
+
+@router.delete("/{conflict_id}", response_model=ConflictResponse)
+async def dismiss_conflict(conflict_id: int):
+    """Dismiss a conflict without resolution."""
+    db = await get_db_connection()
+    
+    async with db.execute(
+        "SELECT * FROM conflicts WHERE id = ?", (conflict_id,)
+    ) as cursor:
+        row = await cursor.fetchone()
+    
+    if not row:
+        raise HTTPException(status_code=404, detail="Conflict not found")
+    
+    async with db.execute(
+        "UPDATE conflicts SET status = ?, resolved_at = ? WHERE id = ?",
+        (ConflictStatus.DISMISSED.value, datetime.utcnow().isoformat(), conflict_id)
+    ):
+        pass
+    
+    await db.commit()
+    
+    return ConflictResponse(
+        id=row[0],
+        memory_id=row[1],
+        local_content=row[2],
+        remote_content=row[3],
+        local_metadata=row[4] or {},
+        remote_metadata=row[5] or {},
+        conflict_type=ConflictType(row[6]),
+        detected_at=datetime.fromisoformat(row[7]),
+        status=ConflictStatus.DISMISSED,
+        resolved_at=datetime.utcnow(),
+        created_at=datetime.fromisoformat(row[13])
+    )
+
+
+def _merge_contents(self, local: str, remote: str) -> str:
+    """Merge two content versions."""
+    if local == remote:
+        return local
+    return f"{local}
+
+---
+
+{remote}"
+
+
+def _merge_metadata(self, local: Dict, remote: Dict) -> Dict:
+    """Merge two metadata dictionaries."""
+    merged = local.copy()
+    for key, value in remote.items():
+        if key not in merged or merged[key] != value:
+            merged[key] = value
+    return merged
+
+
+import json
