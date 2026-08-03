@@ -7,14 +7,14 @@ from fastapi import APIRouter, HTTPException, Depends, Header, status
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 import secrets
 import hashlib
 
 from backend.app.database import get_db_connection
 from backend.app.config import NFM_MCP_ENABLED
 
-router = APIRouter(prefix="", tags=["mcp"])
+router = APIRouter(prefix="/api/v1/mcp", tags=["mcp"])
 
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
@@ -78,8 +78,7 @@ class MCPConfig(BaseModel):
     rate_limit_default: int
 
 
-@route
-r.get("/config", response_model=MCPConfig)
+@router.get("/config", response_model=MCPConfig)
 async def get_mcp_config():
     """Get MCP configuration."""
     return MCPConfig(
@@ -127,7 +126,7 @@ async def create_api_key(key_data: APIKeyCreate):
         description=key_data.description,
         permissions=key_data.permissions,
         enabled=True,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
         expires_at=key_data.expires_at,
         usage_count=0,
         rate_limit=key_data.rate_limit,
@@ -143,8 +142,7 @@ async def list_api_keys(
 ):
     """List all API keys (without secrets)."""
     if not NFM_MCP_ENABLED:
-        raise HTTPException(status_code=403, detail=
-"MCP is disabled")
+        raise HTTPException(status_code=403, detail="MCP is disabled")
     
     db = await get_db_connection()
     query = "SELECT * FROM api_keys"
@@ -169,9 +167,9 @@ async def list_api_keys(
             description=row[3],
             permissions=row[5].split(",") if row[5] else [],
             enabled=bool(row[6]),
-            created_at=datetime.fromisoformat(row[7]),
-            expires_at=datetime.fromisoformat(row[8]) if row[8] else None,
-            last_used_at=datetime.fromisoformat(row[9]) if row[9] else None,
+            created_at=datetime.fromisoformat(row[7]) if isinstance(row[7], str) else row[7],
+            expires_at=datetime.fromisoformat(row[8]) if row[8] and isinstance(row[8], str) else row[8],
+            last_used_at=datetime.fromisoformat(row[9]) if row[9] and isinstance(row[9], str) else row[9],
             usage_count=row[10],
             rate_limit=row[11]
         ))
@@ -201,16 +199,15 @@ async def get_api_key(key_id: str):
         description=row[3],
         permissions=row[5].split(",") if row[5] else [],
         enabled=bool(row[6]),
-        created_at=datetime.fromisoformat(row[7]),
-        expires_at=datetime.fromisoformat(row[8]) if row[8] else None,
-        last_used_at=datetime.fromisoformat(row[9]) if row[9] else None,
+        created_at=datetime.fromisoformat(row[7]) if isinstance(row[7], str) else row[7],
+        expires_at=datetime.fromisoformat(row[8]) if row[8] and isinstance(row[8], str) else row[8],
+        last_used_at=datetime.fromisoformat(row[9]) if row[9] and isinstance(row[9], str) else row[9],
         usage_count=row[10],
         rate_limit=row[11]
     )
 
 
-@router.put("/keys/{key_id}
-", response_model=APIKeyResponse)
+@router.put("/keys/{key_id}", response_model=APIKeyResponse)
 async def update_api_key(key_id: str, key_data: APIKeyUpdate):
     """Update an API key."""
     if not NFM_MCP_ENABLED:
@@ -267,10 +264,9 @@ async def update_api_key(key_id: str, key_data: APIKeyUpdate):
         description=row[3],
         permissions=row[5].split(",") if row[5] else [],
         enabled=bool(row[6]),
-        created_at=datetime.fromisoformat(row[7]),
-        expires_at=datetime.fromisoformat(row[8]) if row[8] else None,
-   
-     last_used_at=datetime.fromisoformat(row[9]) if row[9] else None,
+        created_at=datetime.fromisoformat(row[7]) if isinstance(row[7], str) else row[7],
+        expires_at=datetime.fromisoformat(row[8]) if row[8] and isinstance(row[8], str) else row[8],
+        last_used_at=datetime.fromisoformat(row[9]) if row[9] and isinstance(row[9], str) else row[9],
         usage_count=row[10],
         rate_limit=row[11]
     )
@@ -305,28 +301,32 @@ async def authenticate(request: AuthenticateRequest):
     ) as cursor:
         rows = await cursor.fetchall()
     
+    current_time = datetime.now(timezone.utc)
+    
     for row in rows:
         key_id, permissions, enabled, expires_at, hashed_secret = row
         if not enabled:
             continue
-        if expires_at and datetime.fromisoformat(expires_at) < datetime.utcnow():
-            continue
+        if expires_at:
+            expires_dt = datetime.fromisoformat(expires_at) if isinstance(expires_at, str) else expires_at
+            if expires_dt < current_time:
+                continue
         
         input_hashed = hashlib.sha256(request.api_key.encode()).hexdigest()
         if secrets.compare_digest(input_hashed, hashed_secret):
             async with db.execute(
                 "UPDATE api_keys SET last_used_at = ?, usage_count = usage_count + 1 WHERE key_id = ?",
-                (datetime.utcnow().isoformat(), key_id)
+                (current_time.isoformat(), key_id)
             ):
                 pass
             await db.commit()
             
+            expires_result = datetime.fromisoformat(expires_at) if expires_at and isinstance(expires_at, str) else expires_at
             return AuthenticateResponse(
                 authenticated=True,
                 key_id=key_id,
                 permissions=permissions.split(",") if permissions else [],
-                expires_at=datetime.fromi
-soformat(expires_at) if expires_at else None
+                expires_at=expires_result
             )
     
     raise HTTPException(status_code=401, detail="Invalid API key")
@@ -352,7 +352,9 @@ async def get_rate_limit_info(api_key: str = Depends(api_key_header)):
         raise HTTPException(status_code=401, detail="Invalid API key")
     
     rate_limit = row[0] or 100
-    last_used = datetime.fromisoformat(row[1]) if row[1] else datetime.utcnow()
+    last_used = datetime.fromisoformat(row[1]) if row[1] and isinstance(row[1], str) else row[1]
+    if last_used is None:
+        last_used = current_time
     usage_count = row[2] or 0
     
     reset_at = last_used + timedelta(minutes=1)
@@ -374,6 +376,8 @@ async def verify_api_key(api_key: Optional[str] = Header(None)) -> Optional[Dict
         return None
     
     db = await get_db_connection()
+    current_time = datetime.now(timezone.utc)
+    
     async with db.execute(
         "SELECT key_id, permissions, enabled, expires_at FROM api_keys"
     ) as cursor:
@@ -383,28 +387,30 @@ async def verify_api_key(api_key: Optional[str] = Header(None)) -> Optional[Dict
         key_id, permissions, enabled, expires_at = row
         if not enabled:
             continue
-        if expires_at and datetime.fromisoformat(expires_at) < datetime.utcnow():
-            continue
+        if expires_at:
+            expires_dt = datetime.fromisoformat(expires_at) if isinstance(expires_at, str) else expires_at
+            if expires_dt < current_time:
+                continue
         
         input_hashed = hashlib.sha256(api_key.encode()).hexdigest()
         async with db.execute(
-            "SELECT
- hashed_secret FROM api_keys WHERE key_id = ?", (key_id,)
+            "SELECT hashed_secret FROM api_keys WHERE key_id = ?", (key_id,)
         ) as cursor2:
             secret_row = await cursor2.fetchone()
         
         if secret_row and secrets.compare_digest(input_hashed, secret_row[0]):
             async with db.execute(
                 "UPDATE api_keys SET last_used_at = ?, usage_count = usage_count + 1 WHERE key_id = ?",
-                (datetime.utcnow().isoformat(), key_id)
+                (current_time.isoformat(), key_id)
             ):
                 pass
             await db.commit()
             
+            expires_result = datetime.fromisoformat(expires_at) if expires_at and isinstance(expires_at, str) else expires_at
             return {
                 "key_id": key_id,
                 "permissions": permissions.split(",") if permissions else [],
-                "expires_at": datetime.fromisoformat(expires_at) if expires_at else None
+                "expires_at": expires_result
             }
     
     return None
@@ -421,7 +427,7 @@ async def check_permission(required_permission: str, api_key_info: Optional[Dict
     if required_permission not in api_key_info.get("permissions", []):
         raise HTTPException(status_code=403, detail="Permission denied")
     
-    if api_key_info.get("expires_at") and api_key_info["expires_at"] < datetime.utcnow():
+    if api_key_info.get("expires_at") and api_key_info["expires_at"] < datetime.now(timezone.utc):
         raise HTTPException(status_code=401, detail="API key expired")
     
     return api_key_info
