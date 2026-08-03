@@ -12,6 +12,7 @@ from ..retrieval.engine import RetrievalEngine
 from ..storage.database import get_db
 
 router = APIRouter(prefix="", tags=["Search"])
+retrieval_engine = RetrievalEngine()
 
 
 class SearchResult(BaseModel):
@@ -118,7 +119,7 @@ async def semantic_search(
     import time
     start_time = time.time()
     
-    retrieval = RetrievalEngine()
+    retrieval = retrieval_engine
     results, total = await retrieval.semantic_search(
         query=query,
         limit=limit,
@@ -164,7 +165,7 @@ async def hybrid_search(
     import time
     start_time = time.time()
     
-    retrieval = RetrievalEngine()
+    retrieval = retrieval_engine
     results, total = await retrieval.hybrid_search(
         query=query,
         limit=limit,
@@ -204,7 +205,7 @@ async def find_similar(memory_id: str, limit: int = 10, db: AsyncSession = Depen
     import time
     start_time = time.time()
     
-    retrieval = RetrievalEngine()
+    retrieval = retrieval_engine
     results, total = await retrieval.find_similar(memory_id=memory_id, limit=limit, db_session=db)
     
     search_results = []

@@ -21,7 +21,7 @@ router = APIRouter(prefix="", tags=["Memory"])
 
 
 class MemoryCreateRequest(BaseModel):
-    content: str = Field(..., description="Main content of the memory")
+    content: str = Field(..., min_length=1, max_length=100000, description="Main content of the memory")
     title: Optional[str] = Field(None, description="Title for the memory")
     description: Optional[str] = Field(None, description="Description of the memory")
     memory_type: Optional[MemoryType] = Field(None, description="Type of memory")
@@ -92,6 +92,21 @@ async def create_memory(
         parent_id=request.parent_id,
         db_session=db
     )
+
+    # Generate embedding and add to vector store
+    try:
+        from backend.app.embeddings.models import get_embedding_model
+        from backend.app.embeddings.vector_store import get_vector_store
+
+        emb_model = get_embedding_model()
+        memory.embedding = emb_model.encode_single(memory.content)
+
+        v_store = get_vector_store()
+        v_store.add(memory.id, memory.content, memory.embedding)
+        v_store.save()
+    except Exception as e:
+        logger.error(f"Failed to index memory embedding: {e}")
+
     memory.access_count += 1
     await db.commit()
     await db.refresh(memory)
@@ -168,6 +183,21 @@ async def update_memory(
         metadata=request.metadata,
         db_session=db
     )
+
+    # Update embedding and vector store
+    try:
+        from backend.app.embeddings.models import get_embedding_model
+        from backend.app.embeddings.vector_store import get_vector_store
+
+        emb_model = get_embedding_model()
+        memory.embedding = emb_model.encode_single(memory.content)
+
+        v_store = get_vector_store()
+        v_store.add(memory.id, memory.content, memory.embedding)
+        v_store.save()
+    except Exception as e:
+        logger.error(f"Failed to update indexed memory embedding: {e}")
+
     return MemoryResponse.model_validate(memory)
 
 
