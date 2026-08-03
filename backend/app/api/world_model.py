@@ -9,7 +9,7 @@ from datetime import datetime
 
 from backend.app.world_model.merge import WorldModelMerger, MergeStrategy, MergeResult
 
-router = APIRouter(prefix="/api/v1/world-model", tags=["World Model"])
+router = APIRouter(prefix="", tags=["World Model"])
 
 
 class EntityType(str, Enum):
@@ -76,7 +76,8 @@ async def create_entity(entity: EntityCreate):
         name=entity.name,
         entity_type=entity.entity_type.value,
         attributes=entity.attributes,
-        metadata=entity.metadata
+        metadata=entity.metadat
+a
     )
     
     world_model_merger.add_entity(entity_obj)
@@ -140,7 +141,8 @@ async def merge_entities(request: MergeRequest):
             success=result.success,
             merged_entity_id=result.merged_entity_id,
             source_entity_id=result.source_entity_id,
-            target_entity_id=result.target_entity_id,
+         
+   target_entity_id=result.target_entity_id,
             strategy_used=result.strategy_used.value,
             attributes_merged=result.attributes_merged,
             relationships_merged={k: v for k, v in result.relationships_merged.items()},
