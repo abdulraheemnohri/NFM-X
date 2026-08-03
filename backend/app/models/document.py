@@ -38,7 +38,7 @@ class UploadedDocument(BaseModel):
     size_bytes: int
     mime_type: Optional[str] = None
     status: DocumentStatus = DocumentStatus.PENDING
-    uploaded_at: datetime = Field(default_factory=datetime.utcnow)
+    uploaded_at: datetime = Field(default_factory=datetime.now(timezone.utc))
     processed_at: Optional[datetime] = None
     metadata: Dict[str, Any] = Field(default_factory=dict)
     tags: List[str] = Field(default_factory=list)
@@ -68,7 +68,8 @@ class UploadedDocumentCreate(BaseModel):
     """Model for creating an uploaded document"""
     filename: str
     file_path: str
-    file_type: DocumentType
+    file_type: Docu
+mentType
     file_extension: str
     size_bytes: int
     mime_type: Optional[str] = None
@@ -123,7 +124,7 @@ class OCRJob(BaseModel):
     document_id: str
     status: OCRJobStatus = OCRJobStatus.PENDING
     progress: float = 0.0
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=datetime.now(timezone.utc))
     completed_at: Optional[datetime] = None
     result: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
@@ -143,14 +144,15 @@ class OCRJobResponse(BaseModel):
     result: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
     engine: str
-    languages: List[str]
+    languages: Lis
+t[str]
     extract_tables: bool
 
 
 class CompressionRun(BaseModel):
     """Model for compression runs"""
     run_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    started_at: datetime = Field(default_factory=datetime.utcnow)
+    started_at: datetime = Field(default_factory=datetime.now(timezone.utc))
     completed_at: Optional[datetime] = None
     memories_compressed: int = 0
     memories_archived: int = 0
