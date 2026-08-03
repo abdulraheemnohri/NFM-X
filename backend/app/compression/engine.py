@@ -3,6 +3,7 @@ from datetime import datetime, timezone, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import uuid
+import hashlib
 
 from ..memory.models import Memory, MemoryStatus, MemoryType
 
@@ -13,6 +14,19 @@ class MemoryCompressionEngine:
         self.archive_age_days = 90
         self.archive_importance_threshold = 0.3
         self.min_confidence_for_summary = 0.6
+        self._embedding_cache: Dict[str, Any] = {}
+
+    def _sha256(self, content: str) -> str:
+        return hashlib.sha256(content.encode('utf-8')).hexdigest()
+
+    def _get_cached_embedding(self, content: str) -> Any:
+        """Get embedding from cache or generate new one."""
+        content_hash = self._sha256(content)
+        if content_hash not in self._embedding_cache:
+            from ..embeddings.models import get_embedding_model
+            embedding_model = get_embedding_model()
+            self._embedding_cache[content_hash] = embedding_model.embed(content)
+        return self._embedding_cache[content_hash]
 
     async def find_compressible_memories(self, db_session: AsyncSession,
                                           agent_id: Optional[str] = None) -> List[Memory]:
@@ -51,7 +65,7 @@ class MemoryCompressionEngine:
             id=str(uuid.uuid4()),
             root_id=str(uuid.uuid4()),
             version=1,
-            type=MemoryType.SEMANTIC,
+            type=MemoryType.STRUCTURED,
             content=summary_text,
             normalized_content=summary_text.lower(),
             agent_id=memories[0].agent_id,
@@ -90,10 +104,8 @@ class MemoryCompressionEngine:
                                     similarity_threshold: float = 0.95) -> Dict[str, Any]:
         """Find and merge near-duplicate memories."""
         from ..embeddings.models import get_embedding_model
-        from ..embeddings.vector_store import get_vector_store
 
         embedding_model = get_embedding_model()
-        vector_store = get_vector_store()
 
         stmt = select(Memory).where(Memory.status == MemoryStatus.ACTIVE)
         if agent_id:
@@ -103,16 +115,21 @@ class MemoryCompressionEngine:
 
         duplicates_found = []
         processed = set()
+        
+        # Pre-cache all embeddings to avoid O(n²) calls
+        cached_embeddings = {}
+        for mem in memories:
+            cached_embeddings[mem.id] = self._get_cached_embedding(mem.content)
 
         for i, mem_a in enumerate(memories):
             if mem_a.id in processed:
                 continue
-            emb_a = embedding_model.embed(mem_a.content)
+            emb_a = cached_embeddings[mem_a.id]
 
             for mem_b in memories[i + 1:]:
                 if mem_b.id in processed:
                     continue
-                emb_b = embedding_model.embed(mem_b.content)
+                emb_b = cached_embeddings[mem_b.id]
                 similarity = self._cosine_similarity(emb_a, emb_b)
 
                 if similarity >= similarity_threshold:

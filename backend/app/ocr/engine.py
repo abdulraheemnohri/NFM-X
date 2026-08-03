@@ -9,7 +9,7 @@ import tempfile
 import logging
 from typing import Dict, List, Optional, Any, Union, Tuple
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from enum import Enum
 import asyncio
@@ -63,7 +63,7 @@ class OCRJob:
     status: str = "pending"
     progress: float = 0.0
     result: Optional[OCRResult] = None
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     completed_at: Optional[datetime] = None
     error: Optional[str] = None
     
@@ -96,6 +96,7 @@ class OCREngine:
         self.config = get_config().ocr
         self.jobs: Dict[str, OCRJob] = {}
         self._initialized = False
+        self._embedding_cache: Dict[str, Any] = {}
     
     async def initialize(self) -> None:
         """Initialize the OCR engine"""
@@ -175,7 +176,8 @@ class OCREngine:
             extract_tables: Whether to extract tables (overrides config)
             
         Returns:
-            OCRResult with extracted text, tables, and metadata
+            OCRResult with extracted text, tables, and
+ metadata
         """
         # Ensure engine is initialized
         if not self._initialized:
@@ -186,7 +188,7 @@ class OCREngine:
         use_extract_tables = extract_tables if extract_tables is not None else self.config.table_extraction
         
         result = OCRResult()
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         
         try:
             # Determine file type and process accordingly
@@ -206,7 +208,8 @@ class OCREngine:
             
             result.languages = use_languages
             result.success = True
-            result.confidence = 0.95  # Placeholder - actual confidence depends on engine
+            # Calculate confidence based on engine and result quality
+            result.confidence = self._calculate_confidence(result.text, file_ext)
             result.metadata = {
                 "engine": self.config.engine,
                 "file_type": file_ext,
@@ -218,8 +221,32 @@ class OCREngine:
             result.error = str(e)
             logger.error(f"OCR processing failed: {str(e)}")
         
-        result.processing_time_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+        result.processing_time_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
         return result
+    
+    def _calculate_confidence(self, text: str, file_type: str) -> float:
+        """Calculate confidence score based on text quality and file type."""
+        if not text or len(text.strip()) == 0:
+            return 0.0
+        
+        # Base confidence by engine
+        engine_confidence = {
+            OCREngineType.EASYOCR: 0.85,
+            OCREngineType.TESSERACT: 0.80,
+            OCREngineType.AZURE: 0.95,
+            OCREngineType.GOOGLE: 0.95
+        }.get(self.config.engine, 0.80)
+        
+        # Adjust based on text length and quality
+        text_length = len(text.strip())
+        if text_length > 1000:
+            return min(0.99, engine_confidence + 0.05)
+        elif text_length > 500:
+            return engine_confidence
+        elif text_length > 100:
+            return max(0.6, engine_confidence - 0.1)
+        else:
+            return max(0.4, engine_confidence - 0.2)
     
     async def process_file_async(self, file_path: str, job_id: str, languages: Optional[List[str]] = None, extract_tables: Optional[bool] = None) -> OCRJob:
         """
@@ -260,12 +287,12 @@ class OCREngine:
             job.result = result
             job.status = "completed"
             job.progress = 100.0
-            job.completed_at = datetime.utcnow()
+            job.completed_at = datetime.now(timezone.utc)
             
         except Exception as e:
             job.status = "failed"
             job.error = str(e)
-            job.completed_at = datetime.utcnow()
+            job.completed_at = datetime.now(timezone.utc)
             logger.error(f"Job {job.job_id} failed: {str(e)}")
     
     async def _extract_text_from_pdf(self, file_path: str, languages: List[str]) -> str:
@@ -369,6 +396,7 @@ class OCREngine:
             
             lang = "+".join(languages) if languages else "eng"
             page_text = pytesseract.image_to_string(img_path, lang=lang)
+
             text += "\n" + page_text
             
             os.remove(img_path)
