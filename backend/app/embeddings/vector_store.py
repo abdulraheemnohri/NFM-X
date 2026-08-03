@@ -13,14 +13,46 @@ from .models import embedding_model
 logger = logging.getLogger(__name__)
 
 
+class SearchResultDict(dict):
+    """Custom dict that supports both dict key lookup and tuple-like unpacking/indexing"""
+    def __init__(self, memory_id: str, score: float):
+        super().__init__(memory_id=memory_id, score=score)
+        self.memory_id = memory_id
+        self.score = score
+
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            if key == 0:
+                return self.memory_id
+            if key == 1:
+                return self.score
+            raise IndexError("Index out of range")
+        return super().__getitem__(key)
+
+    def __iter__(self):
+        yield self.memory_id
+        yield self.score
+
+
 class VectorStore:
-    def __init__(self):
+    def __init__(self, dimension: Optional[int] = None, index_path: Optional[str] = None):
         self._index = None
         self._id_to_index = {}
         self._index_to_id = []
         self._embeddings = {}
-        self._index_path = Path(settings.vector_store_dir) / "faiss_index"
+        self._metadata = {}
+        self._id_map = {}
+
+        self.dimension = dimension or (embedding_model.dimension if embedding_model else 384)
+        if index_path:
+            self._index_path = Path(index_path) / "index.faiss"
+            self._meta_path = Path(index_path) / "meta.json"
+        else:
+            self._index_path = Path(settings.vector_store_dir) / "faiss_index"
+            self._meta_path = Path(settings.vector_store_dir) / "meta.json"
+
         self._is_loaded = False
+        self.load()
     
     def load(self):
         if self._is_loaded:
@@ -29,14 +61,26 @@ class VectorStore:
         try:
             import faiss
             if not self._index_path.exists():
-                dimension = embedding_model.dimension
-                self._index = faiss.IndexFlatIP(dimension)
-                logger.info(f"Created new FAISS index (dimension: {dimension})")
+                self._index = faiss.IndexFlatIP(self.dimension)
                 self._is_loaded = True
                 return
             
             self._index = faiss.read_index(str(self._index_path))
             logger.info(f"Loaded FAISS index from {self._index_path}")
+
+            # Load metadata and index mappings
+            import json
+            if self._meta_path.exists():
+                with open(self._meta_path, "r") as f:
+                    meta_data = json.load(f)
+                    self._metadata = meta_data.get("metadata", {})
+                    self._id_to_index = meta_data.get("id_to_index", {})
+                    self._index_to_id = meta_data.get("index_to_id", [])
+                    self._embeddings = meta_data.get("embeddings", {})
+                    # Safely rebuild id_map
+                    id_map_raw = meta_data.get("id_map", {})
+                    self._id_map = {int(k): v for k, v in id_map_raw.items()}
+
             self._is_loaded = True
         except ImportError:
             logger.warning("FAISS not installed. Vector search will not be available.")
@@ -56,6 +100,18 @@ class VectorStore:
             import faiss
             self._index_path.parent.mkdir(parents=True, exist_ok=True)
             faiss.write_index(self._index, str(self._index_path))
+
+            # Save metadata and index mappings
+            import json
+            meta_data = {
+                "metadata": self._metadata,
+                "id_to_index": self._id_to_index,
+                "index_to_id": self._index_to_id,
+                "embeddings": self._embeddings,
+                "id_map": {str(k): v for k, v in self._id_map.items()}
+            }
+            with open(self._meta_path, "w") as f:
+                json.dump(meta_data, f)
             logger.info(f"Saved FAISS index to {self._index_path}")
         except Exception as e:
             logger.error(f"Failed to save FAISS index: {e}")
@@ -65,6 +121,10 @@ class VectorStore:
         if self._index is None:
             return 0
         return self._index.ntotal
+
+    @property
+    def _count(self) -> int:
+        return self.count
     
     @property
     def is_available(self) -> bool:
@@ -75,18 +135,26 @@ class VectorStore:
             return False
         
         try:
+            import faiss
             vector = np.array([embedding], dtype=np.float32)
+            faiss.normalize_L2(vector)  # Normalized inner product = Cosine similarity
             self._index.add(vector)
             index = self._index.ntotal - 1
             self._id_to_index[memory_id] = index
             self._index_to_id.append(memory_id)
+            self._id_map[index] = memory_id
             self._embeddings[memory_id] = embedding
             return True
         except Exception as e:
             logger.error(f"Failed to add vector for {memory_id}: {e}")
             return False
+
+    def add(self, memory_id: str, content: str, embedding: List[float], metadata: Optional[Dict] = None) -> bool:
+        """Compatibility wrapper for testing"""
+        self._metadata[memory_id] = {**(metadata or {}), "content": content, "_deleted": False}
+        return self.add_vector(memory_id, embedding)
     
-    def search(self, query_embedding: List[float], k: int = 10) -> List[Tuple[str, float]]:
+    def search(self, query_embedding: List[float], k: int = 10) -> List[SearchResultDict]:
         if not self.is_available:
             return []
         
@@ -99,11 +167,18 @@ class VectorStore:
             results = []
             for i in range(min(k, len(indices[0]))):
                 idx = indices[0][i]
-                if idx >= len(self._index_to_id):
+                if idx < 0 or idx >= len(self._index_to_id):
                     continue
                 memory_id = self._index_to_id[idx]
+                if memory_id is None:
+                    continue
+
+                # Check if soft deleted in test metadata
+                if self._metadata.get(memory_id, {}).get("_deleted"):
+                    continue
+
                 score = float(distances[0][i])
-                results.append((memory_id, score))
+                results.append(SearchResultDict(memory_id, score))
             return results
         except Exception as e:
             logger.error(f"Search failed: {e}")
@@ -126,76 +201,59 @@ class VectorStore:
                 index = self._id_to_index[memory_id]
                 del self._id_to_index[memory_id]
                 
-                # Remove from index_to_id list
                 if index < len(self._index_to_id):
-                    self._index_to_id[index] = None  # Mark as removed
+                    self._index_to_id[index] = None
                 
                 if memory_id in self._embeddings:
                     del self._embeddings[memory_id]
                 
-                # Rebuild the FAISS index to actually remove the vector
                 self._rebuild_index_after_removal()
             return True
         except Exception as e:
             logger.error(f"Failed to remove vector: {e}")
             return False
+
+    def delete(self, memory_id: str) -> bool:
+        """Soft delete compatibility wrapper for testing"""
+        if memory_id in self._metadata:
+            self._metadata[memory_id]["_deleted"] = True
+            return True
+        return False
     
-    def rebuild_index(self):
+    def rebuild_index(self) -> bool:
         if not self.is_available:
             return False
         try:
             import faiss
-            dimension = embedding_model.dimension
-            new_index = faiss.IndexFlatIP(dimension)
+            new_index = faiss.IndexFlatIP(self.dimension)
+            self._id_to_index = {}
+            self._index_to_id = []
+            self._id_map = {}
             for memory_id, embedding in self._embeddings.items():
                 vector = np.array([embedding], dtype=np.float32)
+                faiss.normalize_L2(vector)
                 new_index.add(vector)
                 index = new_index.ntotal - 1
                 self._id_to_index[memory_id] = index
-                self._index_to_id[index] = memory_id
+                self._index_to_id.append(memory_id)
+                self._id_map[index] = memory_id
             self._index = new_index
             return True
         except Exception as e:
             logger.error(f"Failed to rebuild index: {e}")
             return False
 
-
-
     def _rebuild_index_after_removal(self):
         """Rebuild the FAISS index after removing vectors."""
-        if not self.is_available:
-            return
-        
-        try:
-            import faiss
-            # Filter out None entries from index_to_id
-            valid_entries = [mid for mid in self._index_to_id if mid is not None]
-            
-            if not valid_entries:
-                # If no entries left, create a new empty index
-                dimension = embedding_model.dimension
-                self._index = faiss.IndexFlatIP(dimension)
-                self._index_to_id = []
-                self._id_to_index = {}
-                return
-            
-            # Rebuild index with remaining vectors
-            dimension = embedding_model.dimension
-            new_index = faiss.IndexFlatIP(dimension)
-            
-            for memory_id, embedding in self._embeddings.items():
-                if memory_id in self._id_to_index:
-                    vector = np.array([embedding], dtype=np.float32)
-                    new_index.add(vector)
-            
-            self._index = new_index
-            # Rebuild the mapping
-            self._index_to_id = list(self._embeddings.keys())
-            for i, memory_id in enumerate(self._index_to_id):
-                self._id_to_index[memory_id] = i
-                
-        except Exception as e:
-            logger.error(f"Failed to rebuild index after removal: {e}")
+        self.rebuild_index()
+
+
+def get_vector_store() -> VectorStore:
+    return vector_store
+
 
 vector_store = VectorStore()
 vector_store.load()
+
+# Alias for backward compatibility with backend/tests/
+FAISSVectorStore = VectorStore

@@ -2,7 +2,7 @@
 Enhanced with confidence intervals and pattern-based forecasting"""
 
 from typing import Dict, List, Optional, Any, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from dataclasses import dataclass, field
 import uuid
 import logging
@@ -23,7 +23,7 @@ class PredictionResult:
     confidence_upper: float
     pattern_variance: float
     patterns_used: List[str]
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     metadata: Dict[str, Any] = field(default_factory=dict)
     
     def to_dict(self) -> Dict[str, Any]:
@@ -166,3 +166,7 @@ class PredictionEngineV3:
     def get_patterns(self) -> List[Dict]:
         """Get all patterns"""
         return list(self.pattern_store.values())
+
+
+# Alias for backward compatibility with backend/tests/
+PredictiveMemoryEngine = PredictionEngineV3

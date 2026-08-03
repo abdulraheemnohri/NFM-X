@@ -91,5 +91,15 @@ class MemoryClassifier:
         
         return MemoryPriority.MEDIUM
 
+    def classify(self, content: str) -> Memory:
+        """Helper for testing classification directly on content string"""
+        memory = Memory(
+            content=content,
+            memory_type=MemoryType.TEXT,
+            tags=[],
+            categories=[]
+        )
+        return self.classify_memory(memory)
+
 
 classifier = MemoryClassifier()

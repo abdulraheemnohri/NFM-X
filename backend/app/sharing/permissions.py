@@ -3,7 +3,7 @@ Manages read, write, and admin permissions for shared memory bundles"""
 
 from typing import Dict, List, Set, Optional, Any
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 import logging
 
@@ -17,7 +17,7 @@ class PermissionSet:
     read: bool = False
     write: bool = False
     admin: bool = False
-    granted_at: datetime = field(default_factory=datetime.utcnow)
+    granted_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     granted_by: Optional[str] = None
     
     def to_dict(self) -> Dict[str, Any]:
@@ -55,8 +55,8 @@ class SharingBundle:
     description: str = ""
     memory_ids: Set[str] = field(default_factory=set)
     owner_id: str = ""
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     permissions: Dict[str, PermissionSet] = field(default_factory=dict)
     is_public: bool = False
     metadata: Dict[str, Any] = field(default_factory=dict)
@@ -64,13 +64,13 @@ class SharingBundle:
     def add_memory(self, memory_id: str) -> None:
         """Add a memory to the bundle"""
         self.memory_ids.add(memory_id)
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(timezone.utc)
     
     def remove_memory(self, memory_id: str) -> bool:
         """Remove a memory from the bundle"""
         if memory_id in self.memory_ids:
             self.memory_ids.remove(memory_id)
-            self.updated_at = datetime.utcnow()
+            self.updated_at = datetime.now(timezone.utc)
             return True
         return False
     
@@ -83,14 +83,14 @@ class SharingBundle:
             admin=admin,
             granted_by=granted_by
         )
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(timezone.utc)
         logger.info(f"Granted permissions to {user_id} on bundle {self.bundle_id}")
     
     def revoke_permission(self, user_id: str) -> bool:
         """Revoke all permissions from a user"""
         if user_id in self.permissions:
             del self.permissions[user_id]
-            self.updated_at = datetime.utcnow()
+            self.updated_at = datetime.now(timezone.utc)
             logger.info(f"Revoked permissions from {user_id} on bundle {self.bundle_id}")
             return True
         return False
@@ -108,7 +108,7 @@ class SharingBundle:
         if admin is not None:
             perm.admin = admin
         
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(timezone.utc)
         logger.info(f"Updated permissions for {user_id} on bundle {self.bundle_id}")
         return True
     

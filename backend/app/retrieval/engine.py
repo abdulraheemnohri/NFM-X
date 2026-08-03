@@ -349,8 +349,9 @@ class RetrievalEngine:
                 scores = [1.0] * len(memories)
             
             if memory_types and len(memory_types) > 1:
-                memories = [m for m in memories if m.memory_type in memory_types]
-                scores = [s for m, s in zip(memories, scores) if m.memory_type in memory_types]
+                filtered_pairs = [(m, s) for m, s in zip(memories, scores) if m.memory_type in memory_types]
+                memories = [m for m, s in filtered_pairs]
+                scores = [s for m, s in filtered_pairs]
             
             if tags:
                 filtered_memories = []

@@ -12,7 +12,7 @@ from ..memory.models import Memory, MemoryStatus, MemoryType
 from ..storage.database import get_db
 from ..config import settings
 
-router = APIRouter(prefix="/stats", tags=["Stats"])
+router = APIRouter(prefix="", tags=["Stats"])
 
 
 class SystemStats(BaseModel):

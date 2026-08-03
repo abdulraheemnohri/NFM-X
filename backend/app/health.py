@@ -4,7 +4,7 @@ Comprehensive health monitoring for all subsystems
 """
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, field
 import logging
@@ -46,11 +46,11 @@ class SubsystemStatus:
 class HealthCheckResult:
     """Complete health check result"""
     status: str  # "healthy", "degraded", "unhealthy"
-    timestamp: datetime = field(default_factory=datetime.utcnow)
     uptime_seconds: float
-    subsystems: List[SubsystemStatus] = field(default_factory=list)
     version: str
     environment: str
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    subsystems: List[SubsystemStatus] = field(default_factory=list)
     
     def to_dict(self) -> Dict[str, Any]:
         return {

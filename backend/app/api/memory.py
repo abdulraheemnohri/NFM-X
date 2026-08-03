@@ -17,7 +17,7 @@ from ..storage.database import get_db
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/memory", tags=["Memory"])
+router = APIRouter(prefix="", tags=["Memory"])
 
 
 class MemoryCreateRequest(BaseModel):
@@ -62,7 +62,7 @@ class MemoryResponse(BaseModel):
     embedding: Optional[list]
     embedding_model: Optional[str]
     created_at: datetime
-    updated_at: datetime
+    updated_at: Optional[datetime] = None
     archived_at: Optional[datetime]
     deleted_at: Optional[datetime]
     access_count: int

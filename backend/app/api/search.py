@@ -11,7 +11,7 @@ from ..memory.models import Memory, MemoryStatus, MemoryType
 from ..retrieval.engine import RetrievalEngine
 from ..storage.database import get_db
 
-router = APIRouter(prefix="/memory", tags=["Search"])
+router = APIRouter(prefix="", tags=["Search"])
 
 
 class SearchResult(BaseModel):
@@ -37,7 +37,7 @@ class SearchResponse(BaseModel):
     execution_time: float
 
 
-@router.get("/search", response_model=SearchResponse)
+@router.get("/", response_model=SearchResponse)
 async def keyword_search(
     query: str = Query(...),
     limit: int = Query(default=10, ge=1, le=100),
@@ -107,7 +107,7 @@ async def keyword_search(
     )
 
 
-@router.post("/search/semantic", response_model=SearchResponse)
+@router.post("/semantic", response_model=SearchResponse)
 async def semantic_search(
     query: str,
     limit: int = 10,
@@ -151,7 +151,7 @@ async def semantic_search(
     )
 
 
-@router.post("/search/hybrid", response_model=SearchResponse)
+@router.post("/hybrid", response_model=SearchResponse)
 async def hybrid_search(
     query: str,
     limit: int = 10,

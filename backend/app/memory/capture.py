@@ -8,7 +8,7 @@ import hashlib
 import logging
 import uuid
 
-from .models import Memory, MemoryStatus, MemoryType, MemoryEvent, EventType
+from .models import Memory, MemoryStatus, MemoryType, MemoryEvent, EventType, MemoryVersion, ChangeType
 from .classification import classifier
 from ..storage.database import AsyncSessionLocal
 
@@ -64,13 +64,13 @@ class MemoryCapture:
             
             if parent_id:
                 from sqlalchemy import select
-                result = await
- db_session.execute(
+                result = await db_session.execute(
                     select(Memory).where(Memory.id == parent_id)
                 )
                 parent = result.scalar_one_or_none()
                 if parent:
                     memory.version = parent.version + 1
+                    memory.root_id = parent.root_id or parent.id
                     parent.status = MemoryStatus.ARCHIVED
                     parent.archived_at = datetime.now(timezone.utc)
                     
@@ -81,8 +81,30 @@ class MemoryCapture:
                     )
                     db_session.add(version_event)
             
+            if not memory.root_id:
+                memory.root_id = memory.id
+
             db_session.add(memory)
             
+            # Create version record
+            version_record = MemoryVersion(
+                id=str(uuid.uuid4()),
+                memory_id=memory.id,
+                version=memory.version,
+                content=content,
+                normalized_content=content.lower().strip(),
+                content_hash=memory.content_hash,
+                confidence=memory.confidence or 1.0,
+                importance=memory.importance or 0.5,
+                status=MemoryStatus.ACTIVE,
+                change_type=ChangeType.CREATE if memory.version == 1 else ChangeType.UPDATE,
+                change_reason="Initial version" if memory.version == 1 else f"Updated from parent {parent_id}",
+                created_at=datetime.now(timezone.utc),
+                actor_id=author or "system",
+                actor_type="agent"
+            )
+            db_session.add(version_record)
+
             creation_event = MemoryEvent(
                 memory_id=memory.id,
                 event_type=EventType.CREATED,
@@ -118,11 +140,12 @@ class MemoryCapture:
     ) -> Memory:
         from sqlalchemy import select
         
+        session_owner = db_session is None
         if db_session is None:
             db_session = AsyncSessionLocal()
         
         
-try:
+        try:
             result = await db_session.execute(
                 select(Memory).where(Memory.id == memory_id)
             )
@@ -191,6 +214,7 @@ try:
     ) -> bool:
         from sqlalchemy import select
         
+        session_owner = db_session is None
         if db_session is None:
             db_session = AsyncSessionLocal()
         
