@@ -32,7 +32,7 @@ class SyncConflict:
     local_content: Any
     remote_content: Any
     device_id: str
-    detected_at: datetime = field(default_factory=datetime.utcnow)
+    detected_at: datetime = field(default_factory=datetime.now(timezone.utc))
     resolution_strategy: Optional[ConflictResolutionStrategy] = None
     resolved: bool = False
     resolved_at: Optional[datetime] = None
@@ -51,7 +51,8 @@ class SyncConflict:
             "detected_at": self.detected_at.isoformat(),
             "resolution_strategy": self.resolution_strategy.value if self.resolution_strategy else None,
             "resolved": self.resolved,
-            "resolved_at": self.resolved_at.isoformat() if self.resolved_at else None,
+            "resolved_at": self.resolved_at.isoformat(
+) if self.resolved_at else None,
             "resolved_by": self.resolved_by,
             "resolution_notes": self.resolution_notes
         }
@@ -65,7 +66,7 @@ class ResolutionResult:
     resolution_strategy: ConflictResolutionStrategy
     resolved_content: Any
     notes: str
-    resolved_at: datetime = field(default_factory=datetime.utcnow)
+    resolved_at: datetime = field(default_factory=datetime.now(timezone.utc))
     
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -110,7 +111,8 @@ class SyncConflictResolver:
             remote_timestamp=remote_timestamp,
             local_content=local_content,
             remote_content=remote_content,
-            device_id=device_id
+            device_id
+=device_id
         )
         
         self.conflicts[conflict.conflict_id] = conflict
@@ -150,7 +152,7 @@ class SyncConflictResolver:
         
         # Mark as resolved
         conflict.resolved = True
-        conflict.resolved_at = datetime.utcnow()
+        conflict.resolved_at = datetime.now(timezone.utc)()
         conflict.resolved_by = "auto-resolver"
         conflict.resolution_notes = notes
         
@@ -158,7 +160,8 @@ class SyncConflictResolver:
         result = ResolutionResult(
             conflict_id=conflict_id,
             success=True,
-            resolution_strategy=strategy,
+            resolution_str
+ategy=strategy,
             resolved_content=resolved_content,
             notes=notes
         )
@@ -208,7 +211,8 @@ class SyncConflictResolver:
             if local_ver > remote_ver:
                 return conflict.local_content, "Resolved by version: local has higher version"
             else:
-                return conflict.remote_content, "Resolved by version: remote has higher version"
+                return conflict
+.remote_content, "Resolved by version: remote has higher version"
         except ValueError:
             return conflict.remote_content, "Resolved by version: could not parse versions, prefer remote"
     
