@@ -21,7 +21,7 @@ from backend.app.config import (
     NFM_OCR_ENABLED,
     NFM_MCP_ENABLED
 )
-from backend.app.health import router as health_router
+from backend.app.api.health import router as health_router
 from backend.app.logging_config import setup_logging
 
 # Initialize logging
@@ -70,6 +70,8 @@ if NFM_RATE_LIMIT_ENABLED:
     app.middleware("http")(rate_limit_middleware)
 
 # Mount static files
+import os
+os.makedirs("static", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Include all API routers
@@ -273,11 +275,18 @@ async def root():
     }
 
 
+# Version endpoint
+@app.get("/version", tags=["version"])
+async def get_version():
+    """Version endpoint."""
+    return {"version": NFM_APP_VERSION, "app_name": NFM_APP_NAME}
+
+
 # Health check endpoint
 @app.get("/health", tags=["health"])
 async def health_check():
     """Simple health check endpoint."""
-    return {"status": "healthy", "timestamp": datetime.datetime.utcnow().isoformat()}
+    return {"status": "healthy", "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()}
 
 
 if __name__ == "__main__":

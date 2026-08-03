@@ -37,8 +37,7 @@ class CompressionConfig(BaseModel):
 class SyncConfig(BaseModel):
     """Synchronization Configuration"""
     enabled: bool = Field(default=True, description="Enable synchronization")
-    conflict_strategy: str = Field(default="ti
-mestamp", description="Default conflict resolution strategy")
+    conflict_strategy: str = Field(default="timestamp", description="Default conflict resolution strategy")
     auto_resolve: bool = Field(default=True, description="Auto-resolve conflicts when detected")
     sync_interval_seconds: int = Field(default=60, description="Sync interval in seconds")
     max_retries: int = Field(default=3, description="Max retries for failed syncs")
@@ -80,8 +79,7 @@ class LoggingConfig(BaseModel):
     file_enabled: bool = Field(default=False, description="Enable file logging")
     log_file: str = Field(default="/var/log/nfm-x/app.log", description="Path to log file")
     max_file_size_mb: int = Field(default=100, description="Max log file size in MB")
-    backup
-_count: int = Field(default=5, description="Number of backup log files")
+    backup_count: int = Field(default=5, description="Number of backup log files")
     console_enabled: bool = Field(default=True, description="Enable console logging")
 
 
@@ -121,8 +119,7 @@ class NFMXConfig(BaseSettings):
     """Main NFM-X Configuration"""
     app_name: str = Field(default="NFM-X", description="Application name")
     version: str = Field(default="4.0.0", description="Application version")
-    debug: bool = Field(default=False, description="Enabl
-e debug mode")
+    debug: bool = Field(default=False, description="Enable debug mode")
     environment: str = Field(default="development", description="Environment: development, staging, production")
     
     # Sub-configurations
@@ -141,6 +138,17 @@ e debug mode")
         default="sqlite+aiosqlite:///./data/nfm-x.db",
         description="Database connection URL"
     )
+
+    # Embeddings
+    embedding_model_name: str = Field(
+        default="all-MiniLM-L6-v2",
+        validation_alias="EMBEDDING_MODEL",
+        description="Embedding model name"
+    )
+    embedding_dimension: int = Field(
+        default=384,
+        description="Dimension of generated embeddings"
+    )
     
     # Server
     host: str = Field(default="0.0.0.0", description="Server host")
@@ -157,9 +165,19 @@ e debug mode")
     # Storage
     storage_dir: str = Field(default="./storage", description="Storage directory")
     vector_store_dir: str = Field(default="./storage/vectors", description="Vector store directory")
+    NFM_DB_PATH: Any = Field(default="./data/nfm-x.db", description="Database file path")
+    NFM_VECTOR_PATH: Any = Field(default="./storage/vectors", description="Vector store directory path")
     
     class Config:
         case_sensitive = False
+
+    def __getattr__(self, name: str) -> Any:
+        lower_name = name.lower()
+        if lower_name == "embedding_model":
+            return self.embedding_model_name
+        if lower_name in self.model_fields:
+            return getattr(self, lower_name)
+        raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
 
 
 @lru_cache()
@@ -171,12 +189,31 @@ def get_config() -> NFMXConfig:
 def get_config_dict() -> Dict[str, Any]:
     """Get configuration as a dictionary"""
     config = get_config()
-    return config.model_dump()def get_config_dict() -> Dict[str, Any]:
-    """Get configuration as a dictionary"""
-    config = get_config()
     return config.model_dump()
 
 
 # Clear cache for testing
 def reset_config_cache():
     get_config.cache_clear()
+
+
+# Create settings singleton instance
+settings = get_config()
+
+# Module level NFM variables for backward compatibility and integration
+NFM_APP_NAME = settings.app_name
+NFM_APP_VERSION = settings.version
+NFM_DATABASE_URL = settings.database_url
+NFM_DATABASE_ECHO = settings.debug
+NFM_DATABASE_POOL_SIZE = 5
+NFM_DATABASE_MAX_OVERFLOW = 10
+
+NFM_CORS_ORIGINS = settings.cors.allow_origins
+NFM_CORS_METHODS = settings.cors.allow_methods
+NFM_CORS_HEADERS = settings.cors.allow_headers
+
+NFM_RATE_LIMIT_ENABLED = settings.rate_limit.enabled
+NFM_COMPRESSION_ENABLED = settings.compression.enabled
+NFM_COMPRESSION_INTERVAL = f"{settings.compression.run_interval_hours}h"
+NFM_OCR_ENABLED = settings.ocr.enabled
+NFM_MCP_ENABLED = settings.mcp.enabled

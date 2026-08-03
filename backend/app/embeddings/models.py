@@ -81,3 +81,7 @@ class EmbeddingModel:
 
 embedding_model = EmbeddingModel()
 embedding_model.load()
+
+
+def get_embedding_model() -> EmbeddingModel:
+    return embedding_model

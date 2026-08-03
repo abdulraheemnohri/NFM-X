@@ -3,7 +3,7 @@ NFM-X User Database Models
 User authentication and profile models.
 """
 
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, Index
 from sqlalchemy.sql import func
 from backend.app.database import Base
 
@@ -23,8 +23,8 @@ class User(Base):
     last_login = Column(DateTime(timezone=True))
     
     __table_args__ = (
-        ("idx_users_username", "username"),
-        ("idx_users_email", "email"),
+        Index("idx_users_username", "username"),
+        Index("idx_users_email", "email"),
     )
 
 
@@ -40,6 +40,6 @@ class UserSession(Base):
     expires_at = Column(DateTime(timezone=True))
     
     __table_args__ = (
-        ("idx_sessions_user_id", "user_id"),
-        ("idx_sessions_token", "session_token"),
+        Index("idx_sessions_user_id", "user_id"),
+        Index("idx_sessions_token", "session_token"),
     )

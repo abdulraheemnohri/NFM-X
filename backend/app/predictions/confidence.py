@@ -2,8 +2,8 @@
 Calculates confidence intervals for predictions based on pattern variance"""
 
 from typing import Dict, List, Optional, Tuple
-from dataclasses import dataclass
-from datetime import datetime
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
 import math
 import statistics
 import logging
@@ -20,7 +20,7 @@ class Prediction:
     confidence_lower: float  # Lower bound of confidence interval
     confidence_upper: float  # Upper bound of confidence interval
     pattern_variance: float  # Variance of underlying patterns
-    created_at: datetime = datetime.utcnow()
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     metadata: Dict = None
     
     def __post_init__(self):

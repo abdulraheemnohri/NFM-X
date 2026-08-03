@@ -196,8 +196,7 @@ class OCREngine:
                 if use_extract_tables and self.config.table_extraction:
                     # Extract tables from PDF
                     result.tables = await self._extract_tables_from_pdf(file_path, use_languages)
-                    result.text = "
-".join([t.get("text", "") for t in result.tables])
+                    result.text = "\n".join([t.get("text", "") for t in result.tables])
                 else:
                     # Extract text from PDF
                     result.text = await self._extract_text_from_pdf(file_path, use_languages)
@@ -340,8 +339,7 @@ class OCREngine:
             
             # Extract text from image
             results = reader.readtext(img_path, detail=0)
-            text += "
-".join(results)
+            text += "\n".join(results)
             
             # Clean up
             os.remove(img_path)
@@ -354,8 +352,7 @@ class OCREngine:
         import easyocr
         reader = easyocr.Reader(languages)
         results = reader.readtext(file_path, detail=0)
-        return "
-".join(results)
+        return "\n".join(results)
     
     # Tesseract implementations
     async def _extract_text_pdf_tesseract(self, file_path: str, languages: List[str]) -> str:
@@ -372,8 +369,7 @@ class OCREngine:
             
             lang = "+".join(languages) if languages else "eng"
             page_text = pytesseract.image_to_string(img_path, lang=lang)
-            text += "
-" + page_text
+            text += "\n" + page_text
             
             os.remove(img_path)
         
@@ -409,8 +405,7 @@ class OCREngine:
         result = poller.result()
         text = ""
         for paragraph in result.paragraphs:
-            text += paragraph.content + "
-"
+            text += paragraph.content + "\n"
         
         return text
     
@@ -435,8 +430,7 @@ class OCREngine:
         
         text = ""
         for line in read_response.recognition_result.lines:
-            text += line.text + "
-"
+            text += line.text + "\n"
         
         return text
     
@@ -511,8 +505,7 @@ class OCREngine:
         
         text = ""
         for text_annotation in response.text_annotations:
-            text += text_annotation.description + "
-"
+            text += text_annotation.description + "\n"
         
         return text
     

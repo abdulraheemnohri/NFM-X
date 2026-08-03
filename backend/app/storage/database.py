@@ -58,6 +58,9 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         finally:
             await session.close()
 
+# Alias for backward compatibility with backend/tests/
+get_db_session = get_db
+
 
 async def init_db():
     """Initialize database tables"""
