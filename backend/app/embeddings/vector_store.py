@@ -54,6 +54,43 @@ class VectorStore:
         self._is_loaded = False
         self.load()
     
+
+    def _save_mappings(self):
+        """Save mappings to disk."""
+        if not self._index_path:
+            return
+        
+        try:
+            import json
+            mappings_path = self._index_path.parent / "mappings.json"
+            mappings_data = {
+                "id_to_index": self._id_to_index,
+                "index_to_id": self._index_to_id,
+                "embeddings": {k: v for k, v in self._embeddings.items()}
+            }
+            with open(mappings_path, 'w') as f:
+                json.dump(mappings_data, f)
+        except Exception as e:
+            logger.error(f"Failed to save mappings: {e}")
+    
+    def _load_mappings(self):
+        """Load mappings from disk."""
+        if not self._index_path:
+            return
+        
+        try:
+            import json
+            mappings_path = self._index_path.parent / "mappings.json"
+            if mappings_path.exists():
+                with open(mappings_path, 'r') as f:
+                    mappings_data = json.load(f)
+                    self._id_to_index = mappings_data.get("id_to_index", {})
+                    self._index_to_id = mappings_data.get("index_to_id", [])
+                    self._embeddings = mappings_data.get("embeddings", {})
+        except Exception as e:
+            logger.error(f"Failed to load mappings: {e}")
+
+
     def load(self):
         if self._is_loaded:
             return
@@ -65,7 +102,8 @@ class VectorStore:
                 self._is_loaded = True
                 return
             
-            self._index = faiss.read_index(str(self._index_path))
+  
+          self._index = faiss.read_index(str(self._index_path))
             logger.info(f"Loaded FAISS index from {self._index_path}")
 
             # Load metadata and index mappings
@@ -90,6 +128,7 @@ class VectorStore:
             logger.error(f"Failed to load FAISS index: {e}")
             self._index = None
             self._is_loaded = True
+        self._load_mappings()
     
     def save(self):
         if self._index is None:
@@ -112,7 +151,8 @@ class VectorStore:
             }
             with open(self._meta_path, "w") as f:
                 json.dump(meta_data, f)
-            logger.info(f"Saved FAISS index to {self._index_path}")
+            logger.info(f"Saved 
+FAISS index to {self._index_path}")
         except Exception as e:
             logger.error(f"Failed to save FAISS index: {e}")
     
@@ -166,7 +206,8 @@ class VectorStore:
             
             results = []
             for i in range(min(k, len(indices[0]))):
-                idx = indices[0][i]
+         
+       idx = indices[0][i]
                 if idx < 0 or idx >= len(self._index_to_id):
                     continue
                 memory_id = self._index_to_id[idx]
@@ -220,7 +261,8 @@ class VectorStore:
             return True
         return False
     
-    def rebuild_index(self) -> bool:
+    def rebuild_index(se
+lf) -> bool:
         if not self.is_available:
             return False
         try:
