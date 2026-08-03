@@ -11,7 +11,7 @@ from enum import Enum
 
 from backend.app.database import get_db_connection
 
-router = APIRouter(prefix="/api/v1/skills", tags=["skills"])
+router = APIRouter(prefix="", tags=["skills"])
 
 
 class SkillStatus(str, Enum):
@@ -77,7 +77,8 @@ class SkillExecutionRequest(BaseModel):
     callback_url: Optional[str] = None
 
 
-class SkillExecutionResponse(BaseModel):
+class SkillExecutionResponse(Ba
+seModel):
     execution_id: str
     skill_id: int
     skill_name: str
@@ -147,7 +148,8 @@ async def list_skills(
             tags=row[9].split(",") if row[9] else [],
             status=SkillStatus(row[10]),
             created_at=datetime.fromisoformat(row[11]),
-            updated_at=datetime.fromisoformat(row[12]),
+            updated_at=datetime.f
+romisoformat(row[12]),
             last_executed_at=datetime.fromisoformat(row[13]) if row[13] else None,
             execution_count=row[14]
         ))
@@ -213,7 +215,8 @@ async def create_skill(skill: SkillCreate):
     return SkillResponse(
         id=skill_id,
         **skill.dict(),
-        status=SkillStatus.AVAILABLE,
+        status=SkillStatus.AVAILAB
+LE,
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
         execution_count=0
@@ -276,7 +279,8 @@ async def update_skill(skill_id: int, skill: SkillUpdate):
     
     async with db.execute(
         "SELECT * FROM skills WHERE id = ?", (skill_id,)
-    ) as cursor:
+    
+) as cursor:
         row = await cursor.fetchone()
     
     return SkillResponse(
@@ -339,7 +343,8 @@ async def execute_skill(
     async with db.execute(
         """INSERT INTO skill_executions (execution_id, skill_id, skill_name, input_data, status, started_at)
            VALUES (?, ?, ?, ?, ?, ?)""",
-        (execution_id, skill_id, skill_name, json.dumps(request.input_data), SkillStatus.RUNNING.value, started_at.isoformat())
+        (execution_id, skill_id, skill_name
+, json.dumps(request.input_data), SkillStatus.RUNNING.value, started_at.isoformat())
     ):
         pass
     
@@ -390,7 +395,8 @@ async def execute_skill(
             )
         except Exception as e:
             async with db.execute(
-                """UPDATE skill_executions SET status = ?, error = ?, completed_at = ? 
+                """UPDATE skill_execut
+ions SET status = ?, error = ?, completed_at = ? 
                    WHERE execution_id = ?""",
                 (SkillStatus.FAILED.value, str(e), datetime.utcnow().isoformat(), execution_id)
             ):
@@ -452,7 +458,8 @@ async def list_skill_executions(
     """List executions for a specific skill."""
     db = await get_db_connection()
     async with db.execute(
-        "SELECT execution_id, skill_id, skill_name, status, started_at, completed_at FROM skill_executions WHERE skill_id = ? ORDER BY started_at DESC LIMIT ? OFFSET ?",
+        "SELECT execution_id
+, skill_id, skill_name, status, started_at, completed_at FROM skill_executions WHERE skill_id = ? ORDER BY started_at DESC LIMIT ? OFFSET ?",
         (skill_id, limit, offset)
     ) as cursor:
         rows = await cursor.fetchall()
@@ -510,7 +517,8 @@ async def _execute_skill_sync(handler_path: str, config: Dict, input_data: Dict)
         raise Exception(f"Failed to execute skill: {e}")
 
 
-async def _execute_skill_async(skill_id: int, execution_id: str, handler_path: str, config: Dict, input_data: Dict):
+async def 
+_execute_skill_async(skill_id: int, execution_id: str, handler_path: str, config: Dict, input_data: Dict):
     """Execute a skill asynchronously."""
     import importlib
     
