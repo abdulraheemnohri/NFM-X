@@ -6,7 +6,7 @@ from typing import Dict, List
 from pydantic import BaseModel
 from datetime import datetime, timezone, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, or_
+from sqlalchemy import select, func, and_, or_, cast, Date, String
 
 from ..memory.models import Memory, MemoryStatus, MemoryType
 from ..storage.database import get_db
@@ -33,6 +33,27 @@ class SystemStats(BaseModel):
     created_this_week: int
     created_this_month: int
     vector_store_stats: Dict
+
+
+def extract_date(date_value) -> str:
+    """Extract date string from datetime in a database-agnostic way."""
+    if date_value is None:
+        return ""
+    return date_value.strftime('%Y-%m-%d")
+
+
+def extract_week(date_value) -> str:
+    """Extract week string from datetime in a database-agnostic way."""
+    if date_value is None:
+        return ""
+    return date_value.strftime('%Y-%W")
+
+
+def extract_month(date_value) -> str:
+    """Extract month string from datetime in a database-agnostic way."""
+    if date_value is None:
+        return ""
+    return date_value.strftime('%Y-%m")
 
 
 @router.get("/", response_model=SystemStats)
@@ -130,45 +151,59 @@ async def get_stats(db: AsyncSession = Depends(get_db)) -> SystemStats:
 
 @router.get("/memory")
 async def get_memory_stats(db: AsyncSession = Depends(get_db)):
+    # Database-agnostic daily counts using in-memory processing
     result = await db.execute(
-        select(
-            func.strftime('%Y-%m-%d', Memory.created_at).label('date'),
-            func.count(Memory.id).label('count')
-        )
-        .group_by('date')
-        .order_by('date')
+        select(Memory.created_at).order_by(Memory.created_at)
     )
-    daily_counts = [{"date": row.date, "count": row.count} for row in result.all()]
+    all_memories = result.scalars().all()
     
-    result = await db.execute(
-        select(
-            func.strftime('%Y-%W', Memory.created_at).label('week'),
-            func.count(Memory.id).label('count')
-        )
-        .group_by('week')
-        .order_by('week')
-    )
-    weekly_counts = [{"week": row.week, "count": row.count} for row in result.all()]
+    daily_counts = []
+    daily_map = {}
+    for mem in all_memories:
+        if mem and mem.created_at:
+            date_str = extract_date(mem.created_at)
+            daily_map[date_str] = daily_map.get(date_str, 0) + 1
     
-    result = await db.execute(
-        select(
-            func.strftime('%Y-%m', Memory.created_at).label('month'),
-            func.count(Memory.id).label('count')
-        )
-        .group_by('month')
-        .order_by('month')
-    )
-    monthly_counts = [{"month": row.month, "count": row.count} for row in result.all()]
+    for date_str, count in sorted(daily_map.items()):
+        daily_counts.append({"date": date_str, "count": count})
     
+    # Weekly counts
+    weekly_counts = []
+    weekly_map = {}
+    for mem in all_memories:
+        if mem and mem.created_at:
+            week_str = extract_week(mem.created_at)
+            weekly_map[week_str] = weekly_map.get(week_str, 0) + 1
+    
+    for week_str, count in sorted(weekly_map.items()):
+        weekly_counts.append({"week": week_str, "count": count})
+    
+    # Monthly counts
+    monthly_counts = []
+    monthly_map = {}
+    for mem in all_memories:
+        if mem and mem.created_at:
+            month_str = extract_month(mem.created_at)
+            monthly_map[month_str] = monthly_map.get(month_str, 0) + 1
+    
+    for month_str, count in sorted(monthly_map.items()):
+        monthly_counts.append({"month": month_str, "count": count})
+    
+    # Access stats
     result = await db.execute(
-        select(
-            func.date(Memory.updated_at).label('date'),
-            func.sum(Memory.access_count).label('accesses')
-        )
-        .group_by('date')
-        .order_by('date')
+        select(Memory.updated_at, Memory.access_count).order_by(Memory.updated_at)
     )
-    access_stats = [{"date": str(row.date), "accesses": row.accesses or 0} for row in result.all()]
+    access_rows = result.all()
+    
+    access_stats = []
+    access_map = {}
+    for row in access_rows:
+        if row.updated_at:
+            date_str = extract_date(row.updated_at)
+            access_map[date_str] = access_map.get(date_str, 0) + (row.access_count or 0)
+    
+    for date_str, accesses in sorted(access_map.items()):
+        access_stats.append({"date": date_str, "accesses": accesses})
     
     return {
         "daily_counts": daily_counts,
