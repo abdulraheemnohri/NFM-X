@@ -165,7 +165,7 @@ If the information in memories conflicts, note the conflict in your response.
         sanitized_title = sanitize_content(memory.title or 'Untitled')
         sanitized_content = sanitize_content(memory.content)
         
-        context_string += f"\n<memory id="{memory.id}" relevance="{score:.2f}">\n"
+        context_string += f'\n<memory id="{memory.id}" relevance="{score:.2f}">\n'
         context_string += f"  <title>{sanitized_title}</title>\n"
         context_string += f"  <type>{memory.memory_type.value if memory.memory_type else 'TEXT'}</type>\n"
         context_string += f"  <content>{sanitized_content}</content>\n"

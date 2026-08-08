@@ -37,8 +37,11 @@ async def create_checkpoint(db_session=Depends(get_db_session)):
     prev_hash = None
     for mem in memories:
         mem_hash = chain.hash_memory({
-            "id": mem.id, "content": mem.content, "type": mem.type.value,
-            "confidence": mem.confidence, "created_at": mem.created_at.isoformat()
+            "id": mem.id,
+            "content": mem.content,
+            "type": mem.memory_type.value if hasattr(mem.memory_type, "value") else str(mem.memory_type),
+            "confidence": mem.confidence,
+            "created_at": mem.created_at.isoformat()
         }, prev_hash)
         hashes.append(mem_hash)
         prev_hash = mem_hash
@@ -94,8 +97,11 @@ async def verify_checkpoint(checkpoint_id: str, db_session=Depends(get_db_sessio
     prev_hash = None
     for mem in memories:
         mem_hash = chain.hash_memory({
-            "id": mem.id, "content": mem.content, "type": mem.type.value,
-            "confidence": mem.confidence, "created_at": mem.created_at.isoformat()
+            "id": mem.id,
+            "content": mem.content,
+            "type": mem.memory_type.value if hasattr(mem.memory_type, "value") else str(mem.memory_type),
+            "confidence": mem.confidence,
+            "created_at": mem.created_at.isoformat()
         }, prev_hash)
         hashes.append(mem_hash)
         prev_hash = mem_hash

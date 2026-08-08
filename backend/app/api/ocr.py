@@ -205,8 +205,7 @@ async def get_job_status(job_id: str):
         progress=job.progress,
         created_at=job.created_at.isoformat(),
         completed_at=job.completed_at.isoformat() if job.completed_at else None,
-        result=O
-CRResponse(
+        result=OCRResponse(
             text=job.result.text if job.result else "",
             languages=job.result.languages if job.result else [],
             confidence=job.result.confidence if job.result else 0.0,
@@ -340,8 +339,7 @@ async def extract_tables(
 
 
 @router.get("/engines")
-async def list_e
-ngines():
+async def list_engines():
     """
     List available OCR engines
     """

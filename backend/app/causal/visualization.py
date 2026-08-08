@@ -3,7 +3,7 @@ Generates JSON representations of causal graphs for frontend rendering"""
 
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 import logging
 
@@ -66,8 +66,7 @@ class CausalGraph:
             source=source,
             target=target,
             relationship_type=relationship_type,
- 
-           weight=weight,
+            weight=weight,
             properties=properties or {}
         )
         self.edges.append(edge)
@@ -120,8 +119,12 @@ class CausalGraphVisualizer:
     
     def list_graphs(self) -> List[Dict[str, Any]]:
         return [
-            {"graph_id": g.graph_id, "name": g.name, "crea
-ted_at": g.created_at.isoformat(),
-             "node_count": len(g.nodes), "edge_count": len(g.edges)}
+            {
+                "graph_id": g.graph_id,
+                "name": g.name,
+                "created_at": g.created_at.isoformat(),
+                "node_count": len(g.nodes),
+                "edge_count": len(g.edges)
+            }
             for g in self.graphs.values()
         ]

@@ -88,6 +88,13 @@ except ImportError as e:
     logger.warning(f"Search API v1 not available: {e}")
 
 try:
+    from backend.app.api.context import router as context_router
+    app.include_router(context_router, prefix="/api/v1/context", tags=["v1"])
+    logger.info("Context API v1 loaded")
+except ImportError as e:
+    logger.warning(f"Context API v1 not available: {e}")
+
+try:
     from backend.app.api.graph import router as graph_router
     app.include_router(graph_router, prefix="/api/v1/graph", tags=["v1"])
     logger.info("Graph API v1 loaded")
@@ -151,6 +158,13 @@ try:
     logger.info("World Model API v3 loaded")
 except ImportError as e:
     logger.warning(f"World Model API v3 not available: {e}")
+
+try:
+    from backend.app.api.checkpoints import router as checkpoints_router
+    app.include_router(checkpoints_router, prefix="/api/v3", tags=["v3"])
+    logger.info("Checkpoints API v3 loaded")
+except ImportError as e:
+    logger.warning(f"Checkpoints API v3 not available: {e}")
 
 try:
     from backend.app.api.predictions import router as predictions_router

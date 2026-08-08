@@ -3,7 +3,7 @@ NFM-X V4 Document Models
 Database models for document management
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, Field
 from enum import Enum
@@ -68,8 +68,7 @@ class UploadedDocumentCreate(BaseModel):
     """Model for creating an uploaded document"""
     filename: str
     file_path: str
-    file_type: Docu
-mentType
+    file_type: DocumentType
     file_extension: str
     size_bytes: int
     mime_type: Optional[str] = None
@@ -144,8 +143,7 @@ class OCRJobResponse(BaseModel):
     result: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
     engine: str
-    languages: Lis
-t[str]
+    languages: List[str]
     extract_tables: bool
 
 

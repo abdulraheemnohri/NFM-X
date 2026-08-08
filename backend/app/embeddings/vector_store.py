@@ -102,8 +102,7 @@ class VectorStore:
                 self._is_loaded = True
                 return
             
-  
-          self._index = faiss.read_index(str(self._index_path))
+            self._index = faiss.read_index(str(self._index_path))
             logger.info(f"Loaded FAISS index from {self._index_path}")
 
             # Load metadata and index mappings
@@ -151,8 +150,7 @@ class VectorStore:
             }
             with open(self._meta_path, "w") as f:
                 json.dump(meta_data, f)
-            logger.info(f"Saved 
-FAISS index to {self._index_path}")
+            logger.info(f"Saved FAISS index to {self._index_path}")
         except Exception as e:
             logger.error(f"Failed to save FAISS index: {e}")
     
@@ -206,8 +204,7 @@ FAISS index to {self._index_path}")
             
             results = []
             for i in range(min(k, len(indices[0]))):
-         
-       idx = indices[0][i]
+                idx = indices[0][i]
                 if idx < 0 or idx >= len(self._index_to_id):
                     continue
                 memory_id = self._index_to_id[idx]
@@ -261,8 +258,7 @@ FAISS index to {self._index_path}")
             return True
         return False
     
-    def rebuild_index(se
-lf) -> bool:
+    def rebuild_index(self) -> bool:
         if not self.is_available:
             return False
         try:
