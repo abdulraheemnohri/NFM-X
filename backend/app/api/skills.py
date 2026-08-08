@@ -78,10 +78,8 @@ class SkillExecutionRequest(BaseModel):
     callback_url: Optional[str] = None
 
 
-class SkillExecutionResponse(Ba
-seModel):
-   
- execution_id: str
+class SkillExecutionResponse(BaseModel):
+    execution_id: str
     skill_id: int
     skill_name: str
     status: SkillStatus
@@ -150,9 +148,7 @@ async def list_skills(
             tags=row[9].split(",") if row[9] else [],
             status=SkillStatus(row[10]),
             created_at=datetime.fromisoformat(row[11]),
-            updated_at=datetime.f
-romisoformat
-(row[12]),
+            updated_at=datetime.fromisoformat(row[12]),
             last_executed_at=datetime.fromisoformat(row[13]) if row[13] else None,
             execution_count=row[14]
         ))

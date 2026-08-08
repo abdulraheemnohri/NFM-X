@@ -7,7 +7,7 @@ from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, asdict
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 @dataclass
@@ -52,7 +52,7 @@ class StructuredExtractionResult:
         if self.entities is None:
             self.entities = []
         if self.extracted_at is None:
-            self.extracted_at = datetime.now(timezone.utc)().isoformat()
+            self.extracted_at = datetime.now(timezone.utc).isoformat()
     
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -72,8 +72,7 @@ class StructuredDataExtractor:
         tables = []
         if 'tables' in ocr_result:
             for table_data in ocr_result['tables']:
-                tables.append(ExtractedT
-able(
+                tables.append(ExtractedTable(
                     rows=table_data.get('rows', []),
                     headers=table_data.get('headers'),
                     page_number=table_data.get('page', 1),
@@ -128,7 +127,7 @@ time.time() - start_time) * 1000
             tables=tables,
             key_value_pairs=pairs,
             entities=entities,
-            extracted_at=datetime.now(timezone.utc)().isoformat(),
+            extracted_at=datetime.now(timezone.utc).isoformat(),
             processing_time_ms=processing_time
         )
     

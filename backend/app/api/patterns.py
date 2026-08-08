@@ -6,7 +6,7 @@ Search memories using regex patterns and manage saved search patterns.
 from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 
 from backend.app.database import get_db_connection
 
@@ -79,9 +79,7 @@ async def list_patterns(
         params.append(enabled)
     if tag:
         conditions.append("tags LIKE ?")
-        params
-.append(f"%{tag
-}%")
+        params.append(f"%{tag}%")
     
     if conditions:
         query += " WHERE " + " AND ".join(conditions)
@@ -144,9 +142,7 @@ async def create_pattern(pattern: PatternCreate):
     db = await get_db_connection()
     
     async with db.execute(
-        """INSERT INTO search_pat
-terns (name, p
-attern, description, case_sensitive, enabled, tags)
+        """INSERT INTO search_patterns (name, pattern, description, case_sensitive, enabled, tags)
            VALUES (?, ?, ?, ?, ?, ?)""",
         (
             pattern.name,
@@ -210,9 +206,7 @@ async def update_pattern(pattern_id: int, pattern: PatternUpdate):
         params.append(datetime.now(timezone.utc).isoformat())
         params.append(pattern_id)
         
-        query = "UPDATE search_patterns SET " + ", ".join(upd
-ates) + " WHE
-RE id = ?"
+        query = "UPDATE search_patterns SET " + ", ".join(updates) + " WHERE id = ?"
         async with db.execute(query, params):
             pass
         await db.commit()
@@ -277,9 +271,7 @@ async def search_with_pattern(request: PatternSearchRequest):
         matches = list(compiled_pattern.finditer(content))
         if matches:
             for match in matches:
-                resu
-lts.append(P
-atternSearchResult(
+                results.append(PatternSearchResult(
                     memory_id=memory_id,
                     content=content,
                     matched_text=match.group(0),

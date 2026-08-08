@@ -3,7 +3,7 @@ Compares simulated memory states with real memory states"""
 
 from typing import Dict, List, Optional, Any, Set, Tuple
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 import logging
 
@@ -63,8 +63,7 @@ class SimulationState:
 
 @dataclass
 class MemoryDiff:
- 
-   """Represents differences between two memory states"""
+    """Represents differences between two memory states"""
     memory_id: str
     diff_type: str  # "added", "removed", "modified"
     simulated_state: Optional[MemoryState] = None
@@ -120,12 +119,11 @@ class SimulationComparator:
         metadata: Optional[Dict] = None
     ) -> SimulationState:
         """Create a new simulation state"""
-        simulation = Sim
-ulationState(
+        simulation = SimulationState(
             simulation_id=str(uuid.uuid4()),
             name=name,
             description=description,
-            created_at=datetime.now(timezone.utc)(),
+            created_at=datetime.now(timezone.utc),
             metadata=metadata or {}
         )
         self.simulations[simulation.simulation_id] = simulation
@@ -194,7 +192,7 @@ ulationState(
         # Create diff result
         diff = SimulationDiff(
             simulation_id=simulation_id,
-            compared_at=datetime.now(timezone.utc)(),
+            compared_at=datetime.now(timezone.utc),
             added=added,
             removed=removed,
             modified=modified,

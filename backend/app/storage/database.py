@@ -74,8 +74,7 @@ async def init_db():
 
 async def close_db():
     """Close database connections"""
-    logge
-r.info("Closing database connections...")
+    logger.info("Closing database connections...")
     await engine.dispose()
     logger.info("Database connections closed")
 

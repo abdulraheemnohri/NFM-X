@@ -103,8 +103,7 @@ class MemoryCapture:
                 from backend.app.embeddings.vector_store import get_vector_store
 
                 emb_model = get_embedding_model()
-                memory.embedding 
-= emb_model.encode_single(content)
+                memory.embedding = emb_model.encode_single(content)
 
                 v_store = get_vector_store()
                 v_store.add(memory.id, content, memory.embedding)
@@ -153,8 +152,7 @@ class MemoryCapture:
         finally:
             # Only close the session if we created it
             if session_owner and db_session is not None:
-       
-         await db_session.close()
+                await db_session.close()
 
     async def update_memory(
         self,
@@ -206,8 +204,7 @@ class MemoryCapture:
                 if description is not None:
                     current_memory.description = description
                 if tags is not None:
-           
-         current_memory.tags = tags
+                    current_memory.tags = tags
                 if categories is not None:
                     current_memory.categories = categories
                 if metadata is not None:
@@ -219,8 +216,7 @@ class MemoryCapture:
                     memory_id=memory_id,
                     event_type=EventType.UPDATED,
                     details={"fields": {"title": title is not None, "description": description is not None}}
-  
-              )
+                )
                 db_session.add(update_event)
                 
                 await db_session.commit()

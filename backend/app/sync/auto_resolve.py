@@ -3,7 +3,7 @@ Automatically resolves sync conflicts using configurable heuristics"""
 
 from typing import Dict, List, Optional, Any, Set, Tuple
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 import logging
 
@@ -51,8 +51,7 @@ class SyncConflict:
             "detected_at": self.detected_at.isoformat(),
             "resolution_strategy": self.resolution_strategy.value if self.resolution_strategy else None,
             "resolved": self.resolved,
-            "resolved_at": self.resolved_at.isoformat(
-) if self.resolved_at else None,
+            "resolved_at": self.resolved_at.isoformat() if self.resolved_at else None,
             "resolved_by": self.resolved_by,
             "resolution_notes": self.resolution_notes
         }
@@ -111,8 +110,7 @@ class SyncConflictResolver:
             remote_timestamp=remote_timestamp,
             local_content=local_content,
             remote_content=remote_content,
-            device_id
-=device_id
+            device_id=device_id
         )
         
         self.conflicts[conflict.conflict_id] = conflict
@@ -152,7 +150,7 @@ class SyncConflictResolver:
         
         # Mark as resolved
         conflict.resolved = True
-        conflict.resolved_at = datetime.now(timezone.utc)()
+        conflict.resolved_at = datetime.now(timezone.utc)
         conflict.resolved_by = "auto-resolver"
         conflict.resolution_notes = notes
         
@@ -160,8 +158,7 @@ class SyncConflictResolver:
         result = ResolutionResult(
             conflict_id=conflict_id,
             success=True,
-            resolution_str
-ategy=strategy,
+            resolution_strategy=strategy,
             resolved_content=resolved_content,
             notes=notes
         )
@@ -211,8 +208,7 @@ ategy=strategy,
             if local_ver > remote_ver:
                 return conflict.local_content, "Resolved by version: local has higher version"
             else:
-                return conflict
-.remote_content, "Resolved by version: remote has higher version"
+                return conflict.remote_content, "Resolved by version: remote has higher version"
         except ValueError:
             return conflict.remote_content, "Resolved by version: could not parse versions, prefer remote"
     

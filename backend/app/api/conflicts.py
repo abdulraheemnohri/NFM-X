@@ -72,8 +72,7 @@ class ConflictResponse(ConflictBase):
 class ConflictListResponse(BaseModel):
     id: int
     memory_id: str
-    conflict_type: Conflict
-Type
+    conflict_type: ConflictType
     status: ConflictStatus
     detected_at: datetime
     created_at: datetime
@@ -136,8 +135,7 @@ async def get_conflict(conflict_id: int, db: AsyncSession = Depends(get_db)):
         conflict_type=ConflictType(c.conflict_type),
         detected_at=c.detected_at,
         status=ConflictStatus(c.status),
-        resolution=ResolutionS
-trategy(c.resolution) if c.resolution else None,
+        resolution=ResolutionStrategy(c.resolution) if c.resolution else None,
         resolved_at=c.resolved_at,
         resolved_by=c.resolved_by,
         notes=c.notes,
@@ -194,8 +192,7 @@ async def resolve_conflict(
     
     applied_resolution = resolution.resolution or ResolutionStrategy.KEEP_BOTH
     
-    if appl
-ied_resolution == ResolutionStrategy.MERGE:
+    if applied_resolution == ResolutionStrategy.MERGE:
         merged_content = _merge_contents(c.local_content, c.remote_content)
         merged_metadata = _merge_metadata(c.local_metadata or {}, c.remote_metadata or {})
     elif applied_resolution == ResolutionStrategy.KEEP_LOCAL:
@@ -248,8 +245,7 @@ async def auto_resolve_conflicts(request: AutoResolveRequest, db: AsyncSession =
     if not request.dry_run:
         for c in conflicts:
             try:
-                resolution 
-= ConflictUpdate(
+                resolution = ConflictUpdate(
                     status=ConflictStatus.RESOLVED,
                     resolution=request.strategy,
                     resolved_at=datetime.now(timezone.utc),
@@ -294,8 +290,7 @@ async def bulk_resolve_conflicts(request: BulkResolveRequest, db: AsyncSession =
                         resolution=request.strategy,
                         resolved_at=datetime.now(timezone.utc),
                         resolved_by="bulk-resolver",
-                        notes=f"Bulk resolved with {request.strategy.value} s
-trategy"
+                        notes=f"Bulk resolved with {request.strategy.value} strategy"
                     )
                     applied_resolution = resolution.resolution or ResolutionStrategy.KEEP_BOTH
                     c.status = ConflictStatus.RESOLVED.value

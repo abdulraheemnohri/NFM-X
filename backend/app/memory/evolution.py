@@ -162,7 +162,7 @@ class EvolutionEngine:
         """Get embedding from cache or generate new one."""
         content_hash = _sha256(content)
         if content_hash not in self._embedding_cache:
-            self._embedding_cache[content_hash] = self.embedding_model.embed(content)
+            self._embedding_cache[content_hash] = self.embedding_model.encode_single(content)
         return self._embedding_cache[content_hash]
 
     def _analyze_relationship(self, new_mem: Memory, existing: Memory) -> str:
